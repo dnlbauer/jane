@@ -7,12 +7,12 @@ use crate::types::*;
 use log::{debug};
 
 pub struct Registers {
-    a: Byte,
-    x: Byte,
-    y: Byte,
-    sp: Byte,
-    pc: Addr,
-    flags: Byte 
+    pub a: Byte,
+    pub x: Byte,
+    pub y: Byte,
+    pub sp: Byte,
+    pub pc: Addr,
+    pub flags: Byte 
 }
 
 impl Registers {
@@ -37,17 +37,17 @@ impl Debug for Registers {
 }
 
 
-const CARRY: Byte = 1 << 0;
-const ZERO: Byte = 1 << 1;
-const IRQ: Byte = 1 << 2;
-const DECIMAL: Byte = 1 << 3;
-const BREAK: Byte = 1 << 4;
-const UNUSED: Byte = 1 << 5;
-const OVERFLOW: Byte = 1 << 6;
-const NEGATIVE: Byte = 1 << 7;
+pub const CARRY: Byte = 1 << 0;
+pub const ZERO: Byte = 1 << 1;
+pub const IRQ: Byte = 1 << 2;
+pub const DECIMAL: Byte = 1 << 3;
+pub const BREAK: Byte = 1 << 4;
+pub const UNUSED: Byte = 1 << 5;
+pub const OVERFLOW: Byte = 1 << 6;
+pub const NEGATIVE: Byte = 1 << 7;
 
 pub struct CPU {
-    regs: Registers,
+    pub regs: Registers,
     curr_op: Byte,  // current operation
     cycles: u8,  // number of clock clycles the CPU is ahead of global clock
 }
@@ -86,6 +86,11 @@ impl CPU {
         self.curr_op = 0x00;
     }
 
+    // True if the operation is not finished yet
+    pub fn is_ahead(&self) -> bool {
+        return self.cycles > 0;
+    }
+
     fn readb<T: Bus>(&self, bus: &T, addr: Addr) -> Byte {
         bus.readb(addr)
     }
@@ -122,7 +127,7 @@ impl CPU {
         } 
     }
 
-    fn get_flag(&mut self, flag: Byte) -> Byte {
+    pub fn get_flag(&self, flag: Byte) -> Byte {
         if self.regs.flags & flag > 0 {
             1
         } else {

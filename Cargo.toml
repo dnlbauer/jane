@@ -8,7 +8,9 @@ edition = "2018"
 test = []
 
 [dependencies]
-log = "*"
-simple_logger = "*"
+log = "0.4.*"
+simple_logger = "1.3.*"
 phf = { version = "0.8", features = ['macros'] }
-failure = "*"
+failure = "0.1.*"
+piston_window = "0.105.*"
+piston2d-opengl_graphics = "0.70.*"
