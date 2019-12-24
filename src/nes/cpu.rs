@@ -439,7 +439,7 @@ impl CPU {
     }
 
     fn op_NOP<T: Bus>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        // does nothing
     }
 
     fn op_ORA<T: Bus>(&mut self, bus: &T, val: Word) {
