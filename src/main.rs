@@ -10,7 +10,8 @@ use std::path::Path;
 use piston_window::*;
 use nes::types::*;
 use nes::cpu::*;
-use nes::bus::{MemoryBus, Bus};
+use nes::bus::*;
+use nes::disasm::*;
 use opengl_graphics::OpenGL;
 use log::Level;
 use piston_window::Text;
@@ -25,15 +26,17 @@ fn main() {
     // Load little test program into ram
     let test_prog: [Byte; 28] = [0xA2, 0x0A, 0x8E, 0x00, 0x00, 0xA2, 0x03, 0x8E, 0x01, 0x00, 0xAC, 0x00, 0x00, 0xA9,
     0x00, 0x18, 0x6D, 0x01, 0x00, 0x88, 0xD0, 0xFA, 0x8D, 0x02, 0x00, 0xEA, 0xEA, 0xEA];
-    let offset = 0x8000;
+    let offset: Addr = 0x8000;
     for i in 0..test_prog.len() {
-        let addr = i + offset;
-        bus.writeb(addr as u16, test_prog[i])
+        let addr = (i as Addr) + offset;
+        bus.writeb(addr, test_prog[i])
     }
 
     // hint program location to processor
-    bus.writeb(0xfffc, offset as Byte);
-    bus.writeb(0xfffc + 1, (offset >> 8) as Byte);
+    bus.writew(0xfffc, offset);
+
+    // disassemble instructions
+    let disasm = Disasm::disassemble(&test_prog, offset).unwrap();
 
     // Create and reset CPU 
     let mut cpu: CPU = CPU::new();
@@ -53,20 +56,20 @@ fn main() {
                 }
             }
         } 
-        render(&mut window, &event, &mut glyphs, &cpu, &bus);
+        render(&mut window, &event, &mut glyphs, &cpu, &bus, &disasm);
     }
 }
 
-fn render(window: &mut PistonWindow, event: &Event, glyphs: &mut Glyphs, cpu: &CPU, bus: &dyn Bus) {
+fn render(window: &mut PistonWindow, event: &Event, glyphs: &mut Glyphs, cpu: &CPU, bus: &dyn Bus, disasm: &Disasm) {
     window.draw_2d(event, |c, g, d| {
         clear([0.0, 0.0, 1.0, 1.0], g);
-        render_cpu(&c, g, glyphs, cpu);
+        render_cpu(&c, g, glyphs, cpu, disasm);
         render_pc(&c, g, glyphs, cpu, bus);
         glyphs.factory.encoder.flush(d); 
     });
 }
 
-fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU) {
+fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, disasm: &Disasm) {
         let font_size_pt = 36;
         let color_white = [1.0; 4];
         let color_red = [1.0, 0.0, 0.0, 1.0];
@@ -172,6 +175,20 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU) {
                 g
             );
         }
+
+        for (i, text) in disasm.instructions.iter().enumerate() {
+            let y_dist: f64 = (i+8) as f64*(line_distance + font_size_px as f64);
+            let transform = c.transform.trans(x_dist, y_dist).scale(font_scale, font_scale);
+            Text::new_color(color_white, font_size_pt).draw(
+                &text,
+                glyphs,
+                &c.draw_state,
+                transform,
+                g
+            );
+        }
+
+
 }
 
 fn render_pc(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, bus: &dyn Bus) {

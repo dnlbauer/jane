@@ -2,7 +2,7 @@ use failure::err_msg;
 use phf::{Map,phf_map};
 use failure::{Error};
 use std::fmt;
-use std::fmt::Debug;
+use std::fmt::{Debug,Display};
 
 #[derive(Debug)]
 pub enum AddrMode {
@@ -18,6 +18,12 @@ pub enum AddrMode {
     IND,
     IZX,
     IZY,
+}
+
+impl fmt::Display for AddrMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 
@@ -79,6 +85,12 @@ pub enum Operation {
     TXA,
     TXS,
     TYA,
+}
+
+impl fmt::Display for Operation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {

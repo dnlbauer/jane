@@ -1,8 +1,8 @@
-mod instructions;
+pub mod instructions;
 
 use instructions::{Instruction,Operation,AddrMode};
 use core::fmt::{Debug,Formatter,Result};
-use crate::nes::bus::Bus;
+use crate::nes::bus::*;
 use crate::nes::types::*;
 use log::{debug};
 
@@ -52,8 +52,26 @@ pub struct CPU {
     cycles: u8,  // number of clock clycles the CPU is ahead of global clock
 }
 
+// Default implementation to read/write from bus
+impl BusDevice for CPU { }
+
+// A cpu is clockable
+impl Clockable for CPU {
+    fn clock<T: Bus>(&mut self, bus: &mut T) {
+        if self.cycles == 0 {
+            let opcode = self.readb_pc(bus);
+            self.curr_op = opcode;
+            let instruction = Instruction::decode_op(opcode).unwrap();  // TODO error handling
+            self.cycles = self.run_instruction(bus, instruction);
+        }
+        debug!("{:?}", self);
+        self.cycles -= 1;
+
+    }
+}
+
 impl CPU {
-    pub fn new() -> CPU {
+    pub fn new() -> Self {
         CPU {
             regs: Registers::new(),
             cycles: 0,
@@ -91,18 +109,6 @@ impl CPU {
         return self.cycles > 0;
     }
 
-    fn readb<T: Bus>(&self, bus: &T, addr: Addr) -> Byte {
-        bus.readb(addr)
-    }
-
-    fn readw<T: Bus>(&self, bus: &T, addr: Addr) -> Word {
-        bus.readw(addr)
-    }
-
-    fn writeb<T: Bus>(&mut self, bus: &mut T, addr: Addr, data: Byte) {
-        bus.writeb(addr, data)
-    }
-
     // read the next opcode and increment pc
     fn readb_pc<T: Bus>(&mut self, bus: &T) -> Byte {
         let val = self.readb(bus, self.regs.pc);
@@ -133,19 +139,6 @@ impl CPU {
         } else {
             0
         }
-    }
-
-
-    pub fn clock<T: Bus>(&mut self, bus: &mut T) {
-        if self.cycles == 0 {
-            let opcode = self.readb_pc(bus);
-            self.curr_op = opcode;
-            let instruction = Instruction::decode_op(opcode).unwrap();  // TODO error handling
-            self.cycles = self.run_instruction(bus, instruction);
-        }
-        debug!("{:?}", self);
-        self.cycles -= 1;
-
     }
 
     fn run_instruction<T: Bus>(&mut self, bus: &mut T, i: &Instruction) -> u8 {
