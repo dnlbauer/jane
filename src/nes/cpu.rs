@@ -2,8 +2,8 @@ mod instructions;
 
 use instructions::{Instruction,Operation,AddrMode};
 use core::fmt::{Debug,Formatter,Result};
-use crate::bus::Bus;
-use crate::types::*;
+use crate::nes::bus::Bus;
+use crate::nes::types::*;
 use log::{debug};
 
 pub struct Registers {

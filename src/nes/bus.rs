@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::nes::types::*;
 
 pub trait Bus {
     fn readb(&self, addr: Addr) -> Byte;

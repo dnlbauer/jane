@@ -4,17 +4,13 @@ extern crate simple_logger;
 extern crate phf;
 extern crate piston_window;
 
-
-#[allow(non_snake_case)]
-mod cpu;
-mod bus;
-mod types;
+mod nes; 
 
 use std::path::Path;
 use piston_window::*;
-use types::*;
-use cpu::*;
-use bus::{MemoryBus, Bus};
+use nes::types::*;
+use nes::cpu::*;
+use nes::bus::{MemoryBus, Bus};
 use opengl_graphics::OpenGL;
 use log::Level;
 use piston_window::Text;
