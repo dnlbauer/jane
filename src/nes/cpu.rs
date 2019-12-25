@@ -57,7 +57,7 @@ impl BusDevice for CPU { }
 
 // A cpu is clockable
 impl Clockable for CPU {
-    fn clock<T: Bus>(&mut self, bus: &mut T) {
+    fn clock<T: Memory>(&mut self, bus: &mut T) {
         if self.cycles == 0 {
             let opcode = self.readb_pc(bus);
             self.curr_op = opcode;
@@ -81,7 +81,7 @@ impl CPU {
 
     // Brings the CPU to a known state. Resets all registers and flags
     // Read location of pc from 0xfffc
-    pub fn reset<T: Bus>(&mut self, bus: &T) {
+    pub fn reset<T: Memory>(&mut self, bus: &T) {
         // reset registers
         self.regs.a = 0;
         self.regs.x = 0;
@@ -96,6 +96,7 @@ impl CPU {
         let lo = bus.readb(addr);
         let hi = bus.readb(addr + 1);
         self.regs.pc = (hi as u16) << 8 | lo as u16;
+        debug!("PC after reset: {:#06x}", self.regs.pc);
 
         // A reset takes 8 CPU clocks
         self.cycles = 8;
@@ -110,14 +111,14 @@ impl CPU {
     }
 
     // read the next opcode and increment pc
-    fn readb_pc<T: Bus>(&mut self, bus: &T) -> Byte {
+    fn readb_pc<T: Memory>(&mut self, bus: &T) -> Byte {
         let val = self.readb(bus, self.regs.pc);
         self.regs.pc += 1;
         val
     }
 
     // read whole Word from pc
-    fn readw_pc<T: Bus>(&mut self, bus: &T) -> Word {
+    fn readw_pc<T: Memory>(&mut self, bus: &T) -> Word {
         let val = self.readw(bus, self.regs.pc);
         self.regs.pc += 2;
         val
@@ -141,7 +142,7 @@ impl CPU {
         }
     }
 
-    fn run_instruction<T: Bus>(&mut self, bus: &mut T, i: &Instruction) -> u8 {
+    fn run_instruction<T: Memory>(&mut self, bus: &mut T, i: &Instruction) -> u8 {
         let (value, page_cross) = match &i.addr_mode {
             AddrMode::IMP => self.am_IMP(bus),
             AddrMode::IMM => self.am_IMM(bus),
@@ -225,30 +226,30 @@ impl CPU {
     }
 
         // Implied aka no target
-    fn am_IMP<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_IMP<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
        (0, false)
     }
 
     // Immediate, next byte comes from pc
-    fn am_IMM<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_IMM<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let addr = self.regs.pc;
         self.regs.pc += 1;
         (addr, false)
     }
 
-    fn am_ZP0<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_ZP0<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     }
 
-    fn am_ZPX<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_ZPX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     }
 
-    fn am_ZPY<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_ZPY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     }
 
-    fn am_REL<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_REL<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let rel_addr = self.readb_pc(bus) as Word;
         if rel_addr < 0x80 {
             (self.regs.pc + rel_addr, false)    
@@ -257,33 +258,33 @@ impl CPU {
         }
     }
 
-    fn am_ABS<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_ABS<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let addr = self.readw_pc(bus);
         (addr, false)
     }
 
-    fn am_ABX<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_ABX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     }
 
-    fn am_ABY<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_ABY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     }
 
-    fn am_IND<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_IND<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     }
 
-    fn am_IZX<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_IZX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     }
 
-    fn am_IZY<T: Bus>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_IZY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         unimplemented!()  
     } 
 
     // Operations
-    fn op_ADC<T: Bus>(&mut self, bus: &T, addr: Word) {
+    fn op_ADC<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = self.readb(bus, addr) as Word;
         let tmp = (self.regs.a as Word) + val + (self.get_flag(CARRY) as Word);
         self.set_flag(CARRY, (tmp & 0xFF) > 255);
@@ -293,35 +294,35 @@ impl CPU {
         self.regs.a = tmp as Byte;
     }
 
-    fn op_AND<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_AND<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_ASL<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_ASL<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BCC<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BCC<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BCS<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BCS<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BEQ<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BEQ<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BIT<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BIT<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BMI<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BMI<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BNE<T: Bus>(&mut self, bus: &T, addr: Word) {
+    fn op_BNE<T: Memory>(&mut self, bus: &T, addr: Word) {
         if self.get_flag(ZERO) == 0 {
             let old_addr = self.regs.pc;
             self.regs.pc = addr;
@@ -329,19 +330,19 @@ impl CPU {
         }
     }
 
-    fn op_BPL<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BPL<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BRK<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BRK<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BVC<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BVC<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_BVS<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_BVS<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
@@ -349,31 +350,31 @@ impl CPU {
         self.set_flag(CARRY, false);
     }
 
-    fn op_CLD<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_CLD<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_CLI<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_CLI<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_CLV<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_CLV<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_CMP<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_CMP<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_CPX<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_CPX<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_CPY<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_CPY<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_DEC<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_DEC<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
@@ -389,144 +390,144 @@ impl CPU {
         self.set_flag(NEGATIVE, (self.regs.y & 0x80) != 0)
     }
 
-    fn op_EOR<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_EOR<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_INC<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_INC<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_INX<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_INX<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_INY<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_INY<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_JMP<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_JMP<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_JSR<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_JSR<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_LDA<T: Bus>(&mut self, bus: &T, addr: Word) {
+    fn op_LDA<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.a = val;
         self.set_flag(ZERO, val == 0);
         self.set_flag(NEGATIVE, (val & 0x80) != 0);
     }
 
-    fn op_LDX<T: Bus>(&mut self, bus: &T, addr: Word) {
+    fn op_LDX<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.x = val;
         self.set_flag(ZERO, val == 0);
         self.set_flag(NEGATIVE, (val & 0x80) != 0);
     }
 
-    fn op_LDY<T: Bus>(&mut self, bus: &T, addr: Word) {
+    fn op_LDY<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.y = val;
         self.set_flag(ZERO, val == 0);
         self.set_flag(NEGATIVE, (val & 0x80) != 0);
     }
 
-    fn op_LSR<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_LSR<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_NOP<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_NOP<T: Memory>(&mut self, bus: &T, val: Word) {
         // does nothing
     }
 
-    fn op_ORA<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_ORA<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_PHA<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_PHA<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_PHP<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_PHP<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_PLA<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_PLA<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_PLP<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_PLP<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_ROL<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_ROL<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_ROR<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_ROR<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_RTI<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_RTI<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_RTS<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_RTS<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_SBC<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_SBC<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_SEC<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_SEC<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_SED<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_SED<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_SEI<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_SEI<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_STA<T: Bus>(&mut self, bus: &mut T, addr: Word) {
+    fn op_STA<T: Memory>(&mut self, bus: &mut T, addr: Word) {
         self.writeb(bus, addr, self.regs.a)
     }
 
-    fn op_STX<T: Bus>(&mut self, bus: &mut T, addr: Word) {
+    fn op_STX<T: Memory>(&mut self, bus: &mut T, addr: Word) {
         self.writeb(bus, addr, self.regs.x)
     }
 
-    fn op_STY<T: Bus>(&mut self, bus: &mut T, addr: Word) {
+    fn op_STY<T: Memory>(&mut self, bus: &mut T, addr: Word) {
         self.writeb(bus, addr, self.regs.y)
     }
 
-    fn op_TAX<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_TAX<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_TAY<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_TAY<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_TSX<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_TSX<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_TXA<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_TXA<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_TXS<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_TXS<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }
 
-    fn op_TYA<T: Bus>(&mut self, bus: &T, val: Word) {
+    fn op_TYA<T: Memory>(&mut self, bus: &T, val: Word) {
         unimplemented!()
     }    
 }

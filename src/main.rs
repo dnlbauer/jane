@@ -8,10 +8,10 @@ mod nes;
 
 use std::path::Path;
 use piston_window::*;
-use gfx_core::Device;
 use nes::types::*;
 use nes::cpu::*;
 use nes::bus::*;
+use nes::cartridge::*;
 use nes::disasm::*;
 use opengl_graphics::OpenGL;
 use log::Level;
@@ -33,23 +33,27 @@ fn get_glyphs(window: &mut PistonWindow) -> Glyphs {
 
 fn main() {
     simple_logger::init_with_level(Level::Debug).unwrap();
-    
+   
+    let cartridge = Path::new("test_roms/registers.nes");
+    let cartridge = Cartridge::new(cartridge).unwrap();
+
     let mut bus = MemoryBus::new();
+    bus.insert_cartrige(cartridge);
 
     // Load little test program into ram
-    let test_prog: [Byte; 28] = [0xA2, 0x0A, 0x8E, 0x00, 0x00, 0xA2, 0x03, 0x8E, 0x01, 0x00, 0xAC, 0x00, 0x00, 0xA9,
-    0x00, 0x18, 0x6D, 0x01, 0x00, 0x88, 0xD0, 0xFA, 0x8D, 0x02, 0x00, 0xEA, 0xEA, 0xEA];
-    let offset: Addr = 0x8000;
-    for i in 0..test_prog.len() {
-        let addr = (i as Addr) + offset;
-        bus.writeb(addr, test_prog[i])
-    }
+    // let test_prog: [Byte; 28] = [0xA2, 0x0A, 0x8E, 0x00, 0x00, 0xA2, 0x03, 0x8E, 0x01, 0x00, 0xAC, 0x00, 0x00, 0xA9,
+    // 0x00, 0x18, 0x6D, 0x01, 0x00, 0x88, 0xD0, 0xFA, 0x8D, 0x02, 0x00, 0xEA, 0xEA, 0xEA];
+    // let offset: Addr = 0x8000;
+    // for i in 0..test_prog.len() {
+    //     let addr = (i as Addr) + offset;
+    //     bus.writeb(addr, test_prog[i])
+    // }
+    // // hint program location to processor
+    // bus.writew(0xfffc, offset);
 
     // disassemble instructions
-    let disasm = Disasm::disassemble(&test_prog, offset).unwrap();
-
-    // hint program location to processor
-    bus.writew(0xfffc, offset);
+    // let disasm = Disasm::disassemble(&test_prog, offset).unwrap();
+    let disasm = Disasm::disassemble(&[], 0x000).unwrap();
 
     // Create and reset CPU 
     let mut cpu: CPU = CPU::new();
@@ -83,7 +87,7 @@ fn main() {
     }
 }
 
-fn render(window: &mut PistonWindow, event: &Event, glyphs: &mut Glyphs, cpu: &CPU, bus: &dyn Bus, disasm: &Disasm) {
+fn render(window: &mut PistonWindow, event: &Event, glyphs: &mut Glyphs, cpu: &CPU, bus: &MemoryBus, disasm: &Disasm) {
     window.draw_2d(event, |c, g, d| {
         clear([0.0, 0.0, 1.0, 1.0], g);
 
@@ -225,7 +229,7 @@ fn render_disasm(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, disasm: &Disasm,
 
 }
 
-fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &dyn Bus, offset: [f64; 2]) {
+fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &MemoryBus, offset: [f64; 2]) {
     let mut transform_y = c.transform.trans(offset[0], offset[1]);
     for page in (0x0000..0x00F0).step_by(16) {
         transform_y = transform_y.trans(0.0, FT_LINE_DISTANCE+FT_SIZE_PX);
