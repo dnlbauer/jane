@@ -22,9 +22,9 @@ impl Registers {
             a: 0,
             x: 0,
             y: 0,
-            sp: 0,
-            pc: 0,
-            flags: 0,
+            sp: 0x00FD,
+            pc: 0x0000,
+            flags: 0x0034,
         }
     }
 }
@@ -36,6 +36,7 @@ impl Debug for Registers {
     } 
 }
 
+pub const STACK_BASE_ADDR: Addr = 0x0100;
 
 pub const CARRY: Byte = 1 << 0;
 pub const ZERO: Byte = 1 << 1;
@@ -79,24 +80,25 @@ impl CPU {
         }
     }
 
-    // Brings the CPU to a known state. Resets all registers and flags
-    // Read location of pc from 0xfffc
-    pub fn reset<T: Memory>(&mut self, bus: &T) {
-        // reset registers
-        self.regs.a = 0;
-        self.regs.x = 0;
-        self.regs.y = 0;
-        self.regs.sp = 0xfd;
-        self.regs.pc = 0x00;
-        self.regs.flags = 0x00 | UNUSED;
-
+    // sets PC 
+    pub fn find_pc_addr<T: Memory>(&mut self, bus: &T) {
         // 0xfffc and 0xfffc+1 stores the location of the first op code (where
         // the program starts). Read it and set pc accordingly. 
         let addr: u16 = 0xfffc;
         let lo = bus.readb(addr);
         let hi = bus.readb(addr + 1);
         self.regs.pc = (hi as u16) << 8 | lo as u16;
-        debug!("PC after reset: {:#06x}", self.regs.pc);
+        debug!("PC set to: {:#06x}", self.regs.pc);
+    }
+
+    // Brings the CPU to a known state. Resets all registers and flags
+    // Read location of pc from 0xfffc
+    pub fn reset<T: Memory>(&mut self, bus: &T) {
+        // reset registers
+        self.regs.sp = self.regs.sp - 3;
+        self.set_flag(IRQ, true);
+
+        self.find_pc_addr(bus);
 
         // A reset takes 8 CPU clocks
         self.cycles = 8;
@@ -185,8 +187,8 @@ impl CPU {
             Operation::DEY => self.op_DEY(),
             Operation::EOR => self.op_EOR(bus, value),
             Operation::INC => self.op_INC(bus, value),
-            Operation::INX => self.op_INX(bus, value),
-            Operation::INY => self.op_INY(bus, value),
+            Operation::INX => self.op_INX(bus),
+            Operation::INY => self.op_INY(bus),
             Operation::JMP => self.op_JMP(bus, value),
             Operation::JSR => self.op_JSR(bus, value),
             Operation::LDA => self.op_LDA(bus, value),
@@ -196,7 +198,7 @@ impl CPU {
             Operation::NOP => self.op_NOP(bus, value),
             Operation::ORA => self.op_ORA(bus, value),
             Operation::PHA => self.op_PHA(bus, value),
-            Operation::PHP => self.op_PHP(bus, value),
+            Operation::PHP => self.op_PHP(bus),
             Operation::PLA => self.op_PLA(bus, value),
             Operation::PLP => self.op_PLP(bus, value),
             Operation::ROL => self.op_ROL(bus, value),
@@ -212,7 +214,7 @@ impl CPU {
             Operation::STY => self.op_STY(bus, value),
             Operation::TAX => self.op_TAX(bus, value),
             Operation::TAY => self.op_TAY(bus, value),
-            Operation::TSX => self.op_TSX(bus, value),
+            Operation::TSX => self.op_TSX(bus),
             Operation::TXA => self.op_TXA(bus, value),
             Operation::TXS => self.op_TXS(bus, value),
             Operation::TYA => self.op_TYA(bus, value),
@@ -303,7 +305,7 @@ impl CPU {
     // must be read from the next page. Instead it wraps around and reads from
     // the same page!
     fn am_IZX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let mut ind_addr = self.readw_pc(bus);
+        let mut ind_addr = self.readb_pc(bus) as Word;
         ind_addr += self.regs.x as Word;
 
         let lo = ind_addr & 0b00001111;
@@ -322,7 +324,7 @@ impl CPU {
     // must be read from the next page. Instead it wraps around and reads from
     // the same page!
     fn am_IZY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let mut ind_addr = self.readw_pc(bus);
+        let mut ind_addr = self.readb_pc(bus) as Word;
         ind_addr += self.regs.y as Word;
 
         let lo = ind_addr & 0b00001111;
@@ -460,12 +462,16 @@ impl CPU {
         unimplemented!()
     }
 
-    fn op_INX<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    fn op_INX<T: Memory>(&mut self, bus: &T) {
+        self.regs.x += 1;
+        self.set_flag(ZERO, self.regs.x == 0);
+        self.set_flag(NEGATIVE, (self.regs.x & 0x80) != 0)
     }
 
-    fn op_INY<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    fn op_INY<T: Memory>(&mut self, bus: &T) {
+        self.regs.y += 1;
+        self.set_flag(ZERO, self.regs.y == 0);
+        self.set_flag(NEGATIVE, (self.regs.y & 0x80) != 0)
     }
 
     // Jump to address (set pc)
@@ -476,9 +482,9 @@ impl CPU {
     // Jump to subroutine (leaves trace on the stack)
     fn op_JSR<T: Memory>(&mut self, bus: &mut T, addr: Word) {
         self.regs.pc -= 1;
-        bus.writeb(0x0100 + self.regs.sp as Word, ((self.regs.pc >> 8) & 0x00ff) as Byte);
+        bus.writeb(STACK_BASE_ADDR + self.regs.sp as Word, ((self.regs.pc >> 8) & 0x00ff) as Byte);
         self.regs.sp -= 1;
-        bus.writeb(0x0100 + self.regs.sp as Word, (self.regs.pc & 0x00ff) as Byte);
+        bus.writeb(STACK_BASE_ADDR + self.regs.sp as Word, (self.regs.pc & 0x00ff) as Byte);
         self.regs.sp -= 1;
         self.regs.pc = addr;
     }
@@ -524,18 +530,19 @@ impl CPU {
     }
 
     // Write flags to stack
-    fn op_PHP<T: Memory>(&mut self, bus: &mut T, val: Word) {
+    fn op_PHP<T: Memory>(&mut self, bus: &mut T) {
         let tmp = self.regs.flags | BREAK | UNUSED;
-        bus.writeb(0x0100 + self.regs.sp as Word, tmp);
+        bus.writeb(STACK_BASE_ADDR + self.regs.sp as Word, tmp);
         self.set_flag(BREAK, false);
         self.set_flag(UNUSED, false);
         self.regs.sp -= 1;
+        println!("PHP executed");
     }
 
     // Read from stack into A
     fn op_PLA<T: Memory>(&mut self, bus: &T, val: Word) {
         self.regs.sp += 1;
-        self.regs.a = bus.readb(0x0100 + self.regs.sp as Word);
+        self.regs.a = bus.readb(STACK_BASE_ADDR + self.regs.sp as Word);
         self.set_flag(ZERO, self.regs.a == 0);
         self.set_flag(NEGATIVE, (self.regs.a & 0x80) == 1)
     }
@@ -606,8 +613,9 @@ impl CPU {
         self.set_flag(NEGATIVE, (self.regs.y & 0x80) == 1)
     }
 
-    fn op_TSX<T: Memory>(&mut self, bus: &T, val: Word) {
-        self.regs.x = bus.readb(0x0100 + self.regs.sp as Word);
+    // stack pointer to x
+    fn op_TSX<T: Memory>(&mut self, bus: &T) {
+        self.regs.x = self.regs.sp;
         self.set_flag(ZERO, self.regs.x == 0);
         self.set_flag(NEGATIVE, (self.regs.x & 0x80) == 1)
     }

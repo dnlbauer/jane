@@ -62,7 +62,9 @@ fn main() {
 
     // Create and reset CPU 
     let mut cpu: CPU = CPU::new();
-    cpu.reset(&bus);
+    cpu.find_pc_addr(&bus);
+
+    // cpu.reset(&bus);
 
     // Prepare window and drawing resources
     let mut window: PistonWindow = WindowSettings::new("NESemu", [256*3, 240*2])
@@ -192,12 +194,22 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 transform,
                 g
             ).unwrap();
+        transform = transform.trans(16.0, 0.0);
+        color = FT_COLOR_WHITE;
+        Text::new_color(color, FT_SIZE_PT).draw(
+                &format!("({:#4x})", cpu.regs.flags),
+                glyphs,
+                &c.draw_state,
+                transform,
+                g
+            ).unwrap();
+
 
         let cpu_register_texts = [
-            &format!("A: {:#x} ({})", cpu.regs.a, cpu.regs.a),
-            &format!("X: {:#x} ({})", cpu.regs.x, cpu.regs.y),
-            &format!("Y: {:#x} ({})", cpu.regs.y, cpu.regs.x),
-            &format!("Stack P: {:#x} ({})", cpu.regs.sp, cpu.regs.sp),
+            &format!("A: {0:#x} ({0})", cpu.regs.a),
+            &format!("X: {0:#x} ({0})", cpu.regs.x),
+            &format!("Y: {0:#x} ({0})", cpu.regs.y),
+            &format!("Stack P: {0:#x} ({0})", cpu.regs.sp),
             &format!("Program P: {:#x}", cpu.regs.pc),
         ]; 
 
@@ -253,7 +265,7 @@ fn render_disasm(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, disasm: &Disasm,
 
 fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &MemoryBus, offset: [f64; 2]) {
     let mut transform_y = c.transform.trans(offset[0], offset[1]);
-    for page in (0x0000..0x00F0).step_by(16) {
+    for page in (0x0000..0x01FF).step_by(16) {
         transform_y = transform_y.trans(0.0, FT_LINE_DISTANCE+FT_SIZE_PX);
         Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT).draw(
             &format!("{:#06x}:", page),
@@ -277,7 +289,7 @@ fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &MemoryBus,
     }
 
     transform_y = transform_y.trans(0.0, (FT_LINE_DISTANCE+FT_SIZE_PX) * 1.5);
-    for page in (0x8000..0x80F0).step_by(16) {
+    for page in (0x6000..0x6030).step_by(16) {
         transform_y = transform_y.trans(0.0, (FT_LINE_DISTANCE+FT_SIZE_PX));
         Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT).draw(
             &format!("{:#06x}:", page),

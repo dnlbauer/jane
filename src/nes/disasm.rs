@@ -44,10 +44,13 @@ impl Disasm {
                     let jmp_addr = Disasm::get_rel_addr(rel_addr, addr+2);
                     format!("#{:02x} => {:#06x}", rel_addr, jmp_addr)
                 },
-                
-                AddrMode::IND | AddrMode::IZX | AddrMode::IZY=> {
+                AddrMode::IND => {
                     let addr = mem.readw(mem_iter.next().unwrap());
                     mem_iter.next().unwrap();
+                    format!("{:#06x}", addr)
+                },
+                AddrMode::IZX | AddrMode::IZY => {
+                    let addr = mem.readb(mem_iter.next().unwrap());
                     format!("{:#06x}", addr)
                 }
                 AddrMode::IMP => String::from(""),
