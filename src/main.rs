@@ -34,16 +34,19 @@ fn get_glyphs(window: &mut PistonWindow) -> Glyphs {
 fn main() {
     simple_logger::init_with_level(Level::Debug).unwrap();
    
+    let mut bus = MemoryBus::new();
     let cartridge = Path::new("test_roms/registers.nes");
     let cartridge = Cartridge::new(cartridge).unwrap();
-
-    let mut bus = MemoryBus::new();
     bus.insert_cartrige(cartridge);
+
 
     // Load little test program into ram
     // let test_prog: [Byte; 28] = [0xA2, 0x0A, 0x8E, 0x00, 0x00, 0xA2, 0x03, 0x8E, 0x01, 0x00, 0xAC, 0x00, 0x00, 0xA9,
     // 0x00, 0x18, 0x6D, 0x01, 0x00, 0x88, 0xD0, 0xFA, 0x8D, 0x02, 0x00, 0xEA, 0xEA, 0xEA];
     // let offset: Addr = 0x8000;
+    // // craft test cartrige
+    // let mut cart = Cartridge::dummy();
+    // bus.insert_cartrige(cart);
     // for i in 0..test_prog.len() {
     //     let addr = (i as Addr) + offset;
     //     bus.writeb(addr, test_prog[i])
@@ -52,8 +55,10 @@ fn main() {
     // bus.writew(0xfffc, offset);
 
     // disassemble instructions
-    // let disasm = Disasm::disassemble(&test_prog, offset).unwrap();
-    let disasm = Disasm::disassemble(&[], 0x000).unwrap();
+    let disasm = Disasm::disassemble(&bus, 0xe1ff, 0xffff-2).unwrap();
+    // println!("{:?}", disasm.instructions);
+    // return;
+    // let disasm = Disasm::disassemble(&[], 0x000).unwrap();
 
     // Create and reset CPU 
     let mut cpu: CPU = CPU::new();
@@ -81,6 +86,7 @@ fn main() {
                         cpu.clock(&mut bus);
                     }
                 }
+                Key::R => cpu.reset(&mut bus),
                 _ => { }
             }
         }         
@@ -209,16 +215,32 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
 }
 
 fn render_disasm(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, disasm: &Disasm, pc: Addr, offset: [f64; 2]) {
+    let pc_position = disasm.addresses.iter().position(|&pos| pos == pc);
+    if let None = pc_position {
+        return;
+    }
+    let pc_position = pc_position.unwrap();
+    let lines_above_below: usize = 12;
+
+    let start = if (pc_position as i32 - lines_above_below as i32) < 0 {
+         0
+     } else {
+        pc_position - lines_above_below
+    };
+
     let mut transform = c.transform.trans(offset[0], offset[1]);
-    for (text, addr) in disasm.instructions.iter().zip(disasm.addresses.iter()) {
+    for i in (start..disasm.addresses.len()).take(lines_above_below*2+1) {
+        let addr = disasm.addresses[i];
+        let txt = &disasm.instructions[i];
+    
         transform = transform.trans(0.0, FT_LINE_DISTANCE + FT_SIZE_PX);
-        let color = if *addr == pc {
+        let color = if addr == pc {
             FT_COLOR_RED
         } else {
             FT_COLOR_WHITE
         };
         Text::new_color(color, FT_SIZE_PT).draw(
-            &text,
+            txt,
             glyphs,
              &c.draw_state,
             transform,

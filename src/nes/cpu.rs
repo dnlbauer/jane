@@ -237,16 +237,22 @@ impl CPU {
         (addr, false)
     }
 
+    // Absolute address on zero page
     fn am_ZP0<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
+        let addr = self.readb_pc(bus);
+        (addr as Word & 0x0ff, false) 
     }
 
+    // Absolute address on zero page with x offset
     fn am_ZPX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
+        let addr = self.readb_pc(bus) + self.regs.x;
+        (addr as Word & 0x0ff, false)
     }
 
+    // Absolute address on zero page with y offset
     fn am_ZPY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
+        let addr = self.readb_pc(bus) + self.regs.y;
+        (addr as Word & 0x0ff, false)
     }
 
     fn am_REL<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
@@ -264,26 +270,74 @@ impl CPU {
     }
 
     fn am_ABX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
+        let addr = self.readw_pc(bus) + self.regs.x as Word;
+        (addr, false)  
     }
 
     fn am_ABY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
+        let addr = self.readw_pc(bus) + self.regs.y as Word;
+        (addr, false)  
     }
 
+    // the next 16 bits are an address. This address stores the real address
+    // that is used for the operation.
+    // Hardware bug: Normally, if lo of the supplied address is 0xFF, high byte
+    // must be read from the next page. Instead it wraps around and reads from
+    // the same page!
     fn am_IND<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
+        let mut ind_addr = self.readw_pc(bus);
+        
+        let lo = ind_addr & 0b00001111;
+        if lo == 0x00FF {
+            ind_addr -= 0x00FF; 
+        } 
+
+
+        let addr = bus.readw(ind_addr);
+        (addr, false)
     }
 
+    // the next 16 bits + x are an address. This address stores the real address
+    // that is used for the operation.
+    // Hardware bug: Normally, if lo of the supplied address is 0xFF, high byte
+    // must be read from the next page. Instead it wraps around and reads from
+    // the same page!
     fn am_IZX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
+        let mut ind_addr = self.readw_pc(bus);
+        ind_addr += self.regs.x as Word;
+
+        let lo = ind_addr & 0b00001111;
+        if lo == 0x00FF {
+            ind_addr -= 0x00FF; 
+        } 
+
+
+        let addr = bus.readw(ind_addr);
+        (addr, false)  
     }
 
+    // the next 16 bits + y are an address. This address stores the real address
+    // that is used for the operation.
+    // Hardware bug: Normally, if lo of the supplied address is 0xFF, high byte
+    // must be read from the next page. Instead it wraps around and reads from
+    // the same page!
     fn am_IZY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        unimplemented!()  
-    } 
+        let mut ind_addr = self.readw_pc(bus);
+        ind_addr += self.regs.y as Word;
+
+        let lo = ind_addr & 0b00001111;
+        if lo == 0x00FF {
+            ind_addr -= 0x00FF; 
+        } 
+
+
+        let addr = bus.readw(ind_addr);
+        (addr, false)  
+    }
 
     // Operations
+
+    // Add to A
     fn op_ADC<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = self.readb(bus, addr) as Word;
         let tmp = (self.regs.a as Word) + val + (self.get_flag(CARRY) as Word);
@@ -322,6 +376,7 @@ impl CPU {
         unimplemented!()
     }
 
+    // Jump if 0
     fn op_BNE<T: Memory>(&mut self, bus: &T, addr: Word) {
         if self.get_flag(ZERO) == 0 {
             let old_addr = self.regs.pc;
@@ -346,20 +401,25 @@ impl CPU {
         unimplemented!()
     }
 
+    // Clear carry flag
     fn op_CLC(&mut self) {
         self.set_flag(CARRY, false);
     }
-
+   
+    // clear decimal flag
     fn op_CLD<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.set_flag(DECIMAL, false);
     }
 
+
+    // clear IRQ
     fn op_CLI<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.set_flag(IRQ, false);
     }
 
+    // clear Overflow
     fn op_CLV<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.set_flag(OVERFLOW, false);
     }
 
     fn op_CMP<T: Memory>(&mut self, bus: &T, val: Word) {
@@ -378,12 +438,14 @@ impl CPU {
         unimplemented!()
     }
 
+    // Decrement X
     fn op_DEX(&mut self) {
         self.regs.x -= 1;
         self.set_flag(ZERO, self.regs.x == 0);
         self.set_flag(NEGATIVE, (self.regs.x & 0x80) != 0)
     }
 
+    // Decrement Y
     fn op_DEY(&mut self) {
         self.regs.y -= 1;
         self.set_flag(ZERO, self.regs.y == 0);
@@ -406,14 +468,22 @@ impl CPU {
         unimplemented!()
     }
 
-    fn op_JMP<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    // Jump to address (set pc)
+    fn op_JMP<T: Memory>(&mut self, bus: &T, addr: Word) {
+        self.regs.pc = addr;
     }
 
-    fn op_JSR<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    // Jump to subroutine (leaves trace on the stack)
+    fn op_JSR<T: Memory>(&mut self, bus: &mut T, addr: Word) {
+        self.regs.pc -= 1;
+        bus.writeb(0x0100 + self.regs.sp as Word, ((self.regs.pc >> 8) & 0x00ff) as Byte);
+        self.regs.sp -= 1;
+        bus.writeb(0x0100 + self.regs.sp as Word, (self.regs.pc & 0x00ff) as Byte);
+        self.regs.sp -= 1;
+        self.regs.pc = addr;
     }
 
+    // Read value from addr into A
     fn op_LDA<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.a = val;
@@ -421,6 +491,7 @@ impl CPU {
         self.set_flag(NEGATIVE, (val & 0x80) != 0);
     }
 
+    // Read value from addr into X
     fn op_LDX<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.x = val;
@@ -428,6 +499,7 @@ impl CPU {
         self.set_flag(NEGATIVE, (val & 0x80) != 0);
     }
 
+    // Read value from addr into Y
     fn op_LDY<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.y = val;
@@ -451,12 +523,21 @@ impl CPU {
         unimplemented!()
     }
 
-    fn op_PHP<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    // Write flags to stack
+    fn op_PHP<T: Memory>(&mut self, bus: &mut T, val: Word) {
+        let tmp = self.regs.flags | BREAK | UNUSED;
+        bus.writeb(0x0100 + self.regs.sp as Word, tmp);
+        self.set_flag(BREAK, false);
+        self.set_flag(UNUSED, false);
+        self.regs.sp -= 1;
     }
 
+    // Read from stack into A
     fn op_PLA<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.regs.sp += 1;
+        self.regs.a = bus.readb(0x0100 + self.regs.sp as Word);
+        self.set_flag(ZERO, self.regs.a == 0);
+        self.set_flag(NEGATIVE, (self.regs.a & 0x80) == 1)
     }
 
     fn op_PLP<T: Memory>(&mut self, bus: &T, val: Word) {
@@ -491,45 +572,64 @@ impl CPU {
         unimplemented!()
     }
 
+    // set irq flag
     fn op_SEI<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.set_flag(IRQ, true);
     }
 
+    // Push A reg to memory
     fn op_STA<T: Memory>(&mut self, bus: &mut T, addr: Word) {
         self.writeb(bus, addr, self.regs.a)
     }
 
+    // Push X reg to memory
     fn op_STX<T: Memory>(&mut self, bus: &mut T, addr: Word) {
         self.writeb(bus, addr, self.regs.x)
     }
 
+    // Push Y reg to memory
     fn op_STY<T: Memory>(&mut self, bus: &mut T, addr: Word) {
         self.writeb(bus, addr, self.regs.y)
     }
 
+    // a to x
     fn op_TAX<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.regs.x = self.regs.a;
+        self.set_flag(ZERO, self.regs.x == 0);
+        self.set_flag(NEGATIVE, (self.regs.x & 0x80) == 1)
     }
 
+    // a to y
     fn op_TAY<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.regs.y = self.regs.a;
+        self.set_flag(ZERO, self.regs.y == 0);
+        self.set_flag(NEGATIVE, (self.regs.y & 0x80) == 1)
     }
 
     fn op_TSX<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.regs.x = bus.readb(0x0100 + self.regs.sp as Word);
+        self.set_flag(ZERO, self.regs.x == 0);
+        self.set_flag(NEGATIVE, (self.regs.x & 0x80) == 1)
     }
 
+    // transfer x to a
     fn op_TXA<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.regs.a = self.regs.x;
+        self.set_flag(ZERO, self.regs.a == 0);
+        self.set_flag(NEGATIVE, (self.regs.a & 0x80) == 1)
     }
 
-    fn op_TXS<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
-    }
-
+    // transfer y to a
     fn op_TYA<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
-    }    
+        self.regs.a = self.regs.y;
+        self.set_flag(ZERO, self.regs.a == 0);
+        self.set_flag(NEGATIVE, (self.regs.a & 0x80) == 1)
+    }   
+
+    // transfer x to stack
+    fn op_TXS<T: Memory>(&mut self, bus: &T, val: Word) {
+        self.regs.sp = self.regs.x;
+    } 
 }
 
 impl Debug for CPU {

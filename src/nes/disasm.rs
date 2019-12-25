@@ -1,12 +1,14 @@
+use crate::nes::cpu::instructions::*;
 use failure::Error;
+use std::fmt;
 use crate::nes::bus::*;
 use crate::nes::types::*;
-use crate::nes::cpu::instructions::*;
-use std::collections::HashMap;
+use std::fmt::Debug;
 
 // Disassemble code around the pc of the cpu
 pub struct Disasm {
-    pub offset: Addr,
+    pub start: Addr,
+    pub stop: Addr,
     pub instructions: Vec<String>,
     pub addresses: Vec<Addr>
 }
@@ -15,46 +17,49 @@ impl BusDevice for Disasm {}
 
 impl Disasm {
     // Disassemble given code region
-    pub fn disassemble(mem: &[Byte], offset: Addr) -> Result<Self, Error> {
+    pub fn disassemble(mem: &MemoryBus, start: Addr, stop: Addr) -> Result<Self, Error> {
         let mut instructions = Vec::new();
         let mut addresses = Vec::new();
-        let mut mem_iter = mem.iter().enumerate();
-        while let Some(b) = mem_iter.next() {
-            let addr = offset + (b.0 as Addr);
-            let i = Instruction::decode_op(*b.1)?;
-
+        let mut mem_iter = ((start as usize) .. (stop as usize)+1).map({|a| a as Addr});
+        while let Some(addr) = mem_iter.next() {
+            let opcode = mem.readb(addr);
+            
+            // Decode opcode, default to NOP/IMP to "skip" the byte
+            let i = Instruction::decode_op(opcode)
+                .unwrap_or(Instruction::decode_op(0xeau8).unwrap()); 
+            // debug!("{:?}", i);
             let args = match i.addr_mode {
-                AddrMode::IMM => format!("#{0:02x} ({0})", mem_iter.next().unwrap().1),
-                // AddrMode::ZP0 => self.am_ZP0(bus),
-                // AddrMode::ZPX => self.am_ZPX(bus),
-                // AddrMode::ZPY => self.am_ZPY(bus),
-                AddrMode::ABS => {
-                    let lo = *mem_iter.next().unwrap().1;
-                    let hi = *mem_iter.next().unwrap().1;
-                    let val = (hi as Addr) << 8 | lo as Addr;
+                AddrMode::IMM => format!("#{0:02x} ({0})", mem.readb(mem_iter.next().unwrap())),
+                AddrMode::ZP0 | AddrMode::ZPX | AddrMode::ZPY  => {
+                    let rel_addr = mem.readb(mem_iter.next().unwrap());
+                    format!("{:#04x}", rel_addr)
+                },
+                AddrMode::ABS | AddrMode::ABX | AddrMode::ABY => {
+                    let val = mem.readw(mem_iter.next().unwrap());
+                    mem_iter.next().unwrap();
                     format!("{:#06x}", val)
-                    
-                }
+                },
                 AddrMode::REL => { 
-                    let rel_addr = (*mem_iter.next().unwrap().1) as Addr;
+                    let rel_addr = mem.readb(mem_iter.next().unwrap()) as Word;
                     let jmp_addr = Disasm::get_rel_addr(rel_addr, addr+2);
                     format!("#{:02x} => {:#06x}", rel_addr, jmp_addr)
                 },
                 
-                // AddrMode::ABX => self.am_ABX(bus),
-                // AddrMode::ABY => self.am_ABY(bus),
-                // AddrMode::IND => self.am_IND(bus),
-                // AddrMode::IZX => self.am_IZX(bus),
-                // AddrMode::IZY => self.am_IZY(bus), 
+                AddrMode::IND | AddrMode::IZX | AddrMode::IZY=> {
+                    let addr = mem.readw(mem_iter.next().unwrap());
+                    mem_iter.next().unwrap();
+                    format!("{:#06x}", addr)
+                }
                 AddrMode::IMP => String::from(""),
-                _ => String::from("TODO"),
+                _ => bail!("Disassembly of {} not implemented", i.addr_mode),
             };
 
             let s = format!("{:#06x}: {} {} ({})", addr, i.operation, args, i.addr_mode);
+            // debug!("{:#06x} {}", addr, &s);
             instructions.push(s);
             addresses.push(addr);
         }
-        Ok(Disasm { offset, instructions, addresses })
+        Ok(Disasm { start, stop, instructions, addresses })
     }
 
     fn get_rel_addr(rel_addr: Addr, curr_addr: Addr) -> Addr {
@@ -65,4 +70,11 @@ impl Disasm {
         }
     }
 
+}
+
+
+impl Debug for Disasm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
