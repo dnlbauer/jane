@@ -113,8 +113,12 @@ fn render(window: &mut PistonWindow, event: &Event, glyphs: &mut Glyphs, cpu: &C
 fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: [f64; 2]) {
         let mut transform = c.transform
             .trans(offset[0], offset[1] + FT_SIZE_PX);
-        let mut color = FT_COLOR_WHITE;
-        Text::new_color(color, FT_SIZE_PT).draw(
+        let text_white = Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT);
+        let text_on = Text::new_color(FT_COLOR_GREEN, FT_SIZE_PT);
+        let text_off = Text::new_color(FT_COLOR_RED, FT_SIZE_PT);
+        
+        let mut text = text_white;
+        text.draw(
                 &"Flags:",
                 glyphs,
                 &c.draw_state,
@@ -123,8 +127,8 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
             ).unwrap();
 
         transform = transform.trans(70.0, 0.0);
-        color = if cpu.get_flag(NEGATIVE) == 1 { FT_COLOR_GREEN} else { FT_COLOR_RED };
-        Text::new_color(color , FT_SIZE_PT).draw(
+        text = if cpu.get_flag(NEGATIVE) == 1 { text_on } else { text_off };
+        text.draw(
                 &"N",
                 glyphs,
                 &c.draw_state,
@@ -132,8 +136,8 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = if cpu.get_flag(OVERFLOW) == 1 { FT_COLOR_GREEN} else { FT_COLOR_RED };
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text = if cpu.get_flag(OVERFLOW) == 1 { text_on } else { text_off };
+        text.draw(
                 &"V",
                 glyphs,
                 &c.draw_state,
@@ -141,8 +145,7 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = FT_COLOR_WHITE;
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text_white.draw(
                 &"-",
                 glyphs,
                 &c.draw_state,
@@ -150,8 +153,8 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = if cpu.get_flag(BREAK) == 1 { FT_COLOR_GREEN} else { FT_COLOR_RED };
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text = if cpu.get_flag(BREAK) == 1 { text_on } else { text_off };
+        text.draw(
                 &"B",
                 glyphs,
                 &c.draw_state,
@@ -159,8 +162,8 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = if cpu.get_flag(DECIMAL) == 1 { FT_COLOR_GREEN} else { FT_COLOR_RED };
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text = if cpu.get_flag(DECIMAL) == 1 { text_on } else { text_off };
+        text.draw(
                 &"D",
                 glyphs,
                 &c.draw_state,
@@ -168,8 +171,8 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = if cpu.get_flag(IRQ) == 1 { FT_COLOR_GREEN} else { FT_COLOR_RED };
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text = if cpu.get_flag(IRQ) == 1 { text_on } else { text_off };
+        text.draw(
                 &"I",
                 glyphs,
                 &c.draw_state,
@@ -177,8 +180,8 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = if cpu.get_flag(ZERO) == 1 { FT_COLOR_GREEN} else { FT_COLOR_RED };
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text = if cpu.get_flag(ZERO) == 1 { text_on } else { text_off };
+        text.draw(
                 &"Z",
                 glyphs,
                 &c.draw_state,
@@ -186,8 +189,8 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = if cpu.get_flag(CARRY) == 1 { FT_COLOR_GREEN} else { FT_COLOR_RED };
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text = if cpu.get_flag(CARRY) == 1 { text_on } else { text_off };
+        text.draw(
                 &"C",
                 glyphs,
                 &c.draw_state,
@@ -195,8 +198,7 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
                 g
             ).unwrap();
         transform = transform.trans(16.0, 0.0);
-        color = FT_COLOR_WHITE;
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text_white.draw(
                 &format!("({:#4x})", cpu.regs.flags),
                 glyphs,
                 &c.draw_state,
@@ -216,7 +218,7 @@ fn render_cpu(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, cpu: &CPU, offset: 
         for (i, &text) in cpu_register_texts.iter().enumerate() {
             let y_offset = (i+2) as f64 * (FT_LINE_DISTANCE + FT_SIZE_PX);
             let transform = c.transform.trans(offset[0], offset[1] + y_offset);
-            Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT).draw(
+            text_white.draw(
                 &text,
                 glyphs,
                 &c.draw_state,
@@ -241,17 +243,20 @@ fn render_disasm(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, disasm: &Disasm,
     };
 
     let mut transform = c.transform.trans(offset[0], offset[1]);
+    let text_current = Text::new_color(FT_COLOR_RED, FT_SIZE_PT);
+    let text_other = Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT);
+    
     for i in (start..disasm.addresses.len()).take(lines_above_below*2+1) {
         let addr = disasm.addresses[i];
         let txt = &disasm.instructions[i];
     
         transform = transform.trans(0.0, FT_LINE_DISTANCE + FT_SIZE_PX);
-        let color = if addr == pc {
-            FT_COLOR_RED
+        let text = if addr == pc {
+            text_current
         } else {
-            FT_COLOR_WHITE
+            text_other
         };
-        Text::new_color(color, FT_SIZE_PT).draw(
+        text.draw(
             txt,
             glyphs,
              &c.draw_state,
@@ -265,9 +270,10 @@ fn render_disasm(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, disasm: &Disasm,
 
 fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &MemoryBus, offset: [f64; 2]) {
     let mut transform_y = c.transform.trans(offset[0], offset[1]);
+    let text = Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT);
     for page in (0x0000..0x01FF).step_by(16) {
         transform_y = transform_y.trans(0.0, FT_LINE_DISTANCE+FT_SIZE_PX);
-        Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT).draw(
+        text.draw(
             &format!("{:#06x}:", page),
             glyphs,
             &c.draw_state,
@@ -278,7 +284,7 @@ fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &MemoryBus,
         for offset in 0u16..16u16 {
             transform_x = transform_x.trans(20.0, 0.0);
             let addr = page + offset;
-            Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT).draw(
+            text.draw(
                 &format!("{:02x}", bus.readb(addr)),
                 glyphs,
                 &c.draw_state,
@@ -291,7 +297,7 @@ fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &MemoryBus,
     transform_y = transform_y.trans(0.0, (FT_LINE_DISTANCE+FT_SIZE_PX) * 1.5);
     for page in (0x6000..0x6030).step_by(16) {
         transform_y = transform_y.trans(0.0, (FT_LINE_DISTANCE+FT_SIZE_PX));
-        Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT).draw(
+        text.draw(
             &format!("{:#06x}:", page),
             glyphs,
             &c.draw_state,
@@ -302,7 +308,7 @@ fn render_memory(c: &Context, g: &mut G2d, glyphs: &mut Glyphs, bus: &MemoryBus,
         for offset in 0u16..16u16 {
             transform_x = transform_x.trans(20.0, 0.0);
             let addr = page + offset;
-            Text::new_color(FT_COLOR_WHITE, FT_SIZE_PT).draw(
+            text.draw(
                 &format!("{:02x}", bus.readb(addr)),
                 glyphs,
                 &c.draw_state,
