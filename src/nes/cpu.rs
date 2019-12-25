@@ -146,8 +146,8 @@ impl CPU {
 
     fn run_instruction<T: Memory>(&mut self, bus: &mut T, i: &Instruction) -> u8 {
         let (value, page_cross) = match &i.addr_mode {
-            AddrMode::IMP => self.am_IMP(bus),
-            AddrMode::IMM => self.am_IMM(bus),
+            AddrMode::IMP => self.am_IMP(),
+            AddrMode::IMM => self.am_IMM(),
             AddrMode::ZP0 => self.am_ZP0(bus),
             AddrMode::ZPX => self.am_ZPX(bus),
             AddrMode::ZPY => self.am_ZPY(bus),
@@ -170,15 +170,15 @@ impl CPU {
             Operation::BEQ => self.op_BEQ(bus, value),
             Operation::BIT => self.op_BIT(bus, value),
             Operation::BMI => self.op_BMI(bus, value),
-            Operation::BNE => self.op_BNE(bus, value),
+            Operation::BNE => self.op_BNE(value),
             Operation::BPL => self.op_BPL(bus, value),
             Operation::BRK => self.op_BRK(bus, value),
             Operation::BVC => self.op_BVC(bus, value),
             Operation::BVS => self.op_BVS(bus, value),
             Operation::CLC => self.op_CLC(),
-            Operation::CLD => self.op_CLD(bus, value),
-            Operation::CLI => self.op_CLI(bus, value),
-            Operation::CLV => self.op_CLV(bus, value),
+            Operation::CLD => self.op_CLD(),
+            Operation::CLI => self.op_CLI(),
+            Operation::CLV => self.op_CLV(),
             Operation::CMP => self.op_CMP(bus, value),
             Operation::CPX => self.op_CPX(bus, value),
             Operation::CPY => self.op_CPY(bus, value),
@@ -208,7 +208,7 @@ impl CPU {
             Operation::SBC => self.op_SBC(bus, value),
             Operation::SEC => self.op_SEC(bus, value),
             Operation::SED => self.op_SED(bus, value),
-            Operation::SEI => self.op_SEI(bus, value),
+            Operation::SEI => self.op_SEI(),
             Operation::STA => self.op_STA(bus, value),
             Operation::STX => self.op_STX(bus, value),
             Operation::STY => self.op_STY(bus, value),
@@ -228,12 +228,12 @@ impl CPU {
     }
 
         // Implied aka no target
-    fn am_IMP<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_IMP(&mut self) -> (Word, bool) {
        (0, false)
     }
 
     // Immediate, next byte comes from pc
-    fn am_IMM<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
+    fn am_IMM(&mut self) -> (Word, bool) {
         let addr = self.regs.pc;
         self.regs.pc += 1;
         (addr, false)
@@ -271,14 +271,20 @@ impl CPU {
         (addr, false)
     }
 
+    // additional cycle on page wrap
     fn am_ABX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let addr = self.readw_pc(bus) + self.regs.x as Word;
-        (addr, false)  
+        let tmp_addr = self.readw_pc(bus);
+        let addr = tmp_addr + self.regs.x as Word;
+
+        (addr, addr & 0xFF00 != tmp_addr & 0xF00)
     }
 
+    // additional cycle on page wrap
     fn am_ABY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let addr = self.readw_pc(bus) + self.regs.y as Word;
-        (addr, false)  
+        let tmp_addr = self.readw_pc(bus);
+        let addr = tmp_addr + self.regs.y as Word;
+
+        (addr, addr & 0xFF00 != tmp_addr & 0xF00) 
     }
 
     // the next 16 bits are an address. This address stores the real address
@@ -288,18 +294,18 @@ impl CPU {
     // the same page!
     fn am_IND<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let mut ind_addr = self.readw_pc(bus);
-        
+       
+        // page boundary bug 
         let lo = ind_addr & 0b00001111;
         if lo == 0x00FF {
             ind_addr -= 0x00FF; 
         } 
 
-
         let addr = bus.readw(ind_addr);
         (addr, false)
     }
 
-    // the next 16 bits + x are an address. This address stores the real address
+    // the next 8 bits + x are an address. This address stores the real address
     // that is used for the operation.
     // Hardware bug: Normally, if lo of the supplied address is 0xFF, high byte
     // must be read from the next page. Instead it wraps around and reads from
@@ -308,33 +314,20 @@ impl CPU {
         let mut ind_addr = self.readb_pc(bus) as Word;
         ind_addr += self.regs.x as Word;
 
-        let lo = ind_addr & 0b00001111;
-        if lo == 0x00FF {
-            ind_addr -= 0x00FF; 
-        } 
-
-
-        let addr = bus.readw(ind_addr);
+        let addr = bus.readw(ind_addr & 0x00FF);
         (addr, false)  
     }
 
-    // the next 16 bits + y are an address. This address stores the real address
+    // the next 8 bits + y are an address. This address stores the real address
     // that is used for the operation.
     // Hardware bug: Normally, if lo of the supplied address is 0xFF, high byte
     // must be read from the next page. Instead it wraps around and reads from
     // the same page!
     fn am_IZY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let mut ind_addr = self.readb_pc(bus) as Word;
-        ind_addr += self.regs.y as Word;
+        let mut tmp_addr = self.readb_pc(bus) as Word;
+        let addr = self.readw(bus, tmp_addr & 0x00FF);
 
-        let lo = ind_addr & 0b00001111;
-        if lo == 0x00FF {
-            ind_addr -= 0x00FF; 
-        } 
-
-
-        let addr = bus.readw(ind_addr);
-        (addr, false)  
+        (addr, addr & 0xFF00 != tmp_addr & 0xF00)
     }
 
     // Operations
@@ -342,12 +335,15 @@ impl CPU {
     // Add to A
     fn op_ADC<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = self.readb(bus, addr) as Word;
-        let tmp = (self.regs.a as Word) + val + (self.get_flag(CARRY) as Word);
-        self.set_flag(CARRY, (tmp & 0xFF) > 255);
-        self.set_flag(ZERO, tmp == 0);
-        self.set_flag(NEGATIVE, (tmp & 0x80) == 1);
-        self.set_flag(OVERFLOW, !(((self.regs.a as Word) ^ tmp) & !((self.regs.a as Word) ^ val) & 0x80) == 1);
-        self.regs.a = tmp as Byte;
+        let tmp1 = (self.regs.a as Word).overflowing_add(val);
+        let tmp2 = tmp1.0.overflowing_add(self.get_flag(CARRY) as Word);
+        let val = tmp2.0;
+        let overflow = tmp1.1 || tmp2.1;
+        self.set_flag(CARRY, (val & 0xFF) > 255);
+        self.set_flag(ZERO, val == 0);
+        self.set_flag(NEGATIVE, (val & 0x80) == 1);
+        self.set_flag(OVERFLOW, overflow);
+        self.regs.a = val as Byte;
     }
 
     fn op_AND<T: Memory>(&mut self, bus: &T, val: Word) {
@@ -378,8 +374,8 @@ impl CPU {
         unimplemented!()
     }
 
-    // Jump if 0
-    fn op_BNE<T: Memory>(&mut self, bus: &T, addr: Word) {
+    // Branch if 0 flag is set
+    fn op_BNE(&mut self, addr: Word) {
         if self.get_flag(ZERO) == 0 {
             let old_addr = self.regs.pc;
             self.regs.pc = addr;
@@ -409,18 +405,18 @@ impl CPU {
     }
    
     // clear decimal flag
-    fn op_CLD<T: Memory>(&mut self, bus: &T, val: Word) {
+    fn op_CLD(&mut self) {
         self.set_flag(DECIMAL, false);
     }
 
 
     // clear IRQ
-    fn op_CLI<T: Memory>(&mut self, bus: &T, val: Word) {
+    fn op_CLI(&mut self) {
         self.set_flag(IRQ, false);
     }
 
     // clear Overflow
-    fn op_CLV<T: Memory>(&mut self, bus: &T, val: Word) {
+    fn op_CLV(&mut self) {
         self.set_flag(OVERFLOW, false);
     }
 
@@ -442,14 +438,14 @@ impl CPU {
 
     // Decrement X
     fn op_DEX(&mut self) {
-        self.regs.x -= 1;
+        self.regs.x = self.regs.x.wrapping_sub(1);
         self.set_flag(ZERO, self.regs.x == 0);
         self.set_flag(NEGATIVE, (self.regs.x & 0x80) != 0)
     }
 
     // Decrement Y
     fn op_DEY(&mut self) {
-        self.regs.y -= 1;
+        self.regs.y = self.regs.y.wrapping_sub(1);
         self.set_flag(ZERO, self.regs.y == 0);
         self.set_flag(NEGATIVE, (self.regs.y & 0x80) != 0)
     }
@@ -463,13 +459,13 @@ impl CPU {
     }
 
     fn op_INX<T: Memory>(&mut self, bus: &T) {
-        self.regs.x += 1;
+        self.regs.x = self.regs.x.wrapping_add(1);
         self.set_flag(ZERO, self.regs.x == 0);
         self.set_flag(NEGATIVE, (self.regs.x & 0x80) != 0)
     }
 
     fn op_INY<T: Memory>(&mut self, bus: &T) {
-        self.regs.y += 1;
+        self.regs.y = self.regs.y.wrapping_add(1);
         self.set_flag(ZERO, self.regs.y == 0);
         self.set_flag(NEGATIVE, (self.regs.y & 0x80) != 0)
     }
@@ -580,7 +576,7 @@ impl CPU {
     }
 
     // set irq flag
-    fn op_SEI<T: Memory>(&mut self, bus: &T, val: Word) {
+    fn op_SEI(&mut self) {
         self.set_flag(IRQ, true);
     }
 
