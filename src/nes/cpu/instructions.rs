@@ -4,7 +4,7 @@ use failure::{Error};
 use std::fmt;
 use std::fmt::{Debug,Display};
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub enum AddrMode {
     IMP,
     IMM,

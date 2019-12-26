@@ -65,8 +65,6 @@ fn main() -> Result<(), Error> {
     let mut cpu: CPU = CPU::new();
     cpu.find_pc_addr(&bus);
     cpu.regs.pc = 0xC000;
-    // return Ok(());
-    // cpu.reset(&bus);
 
     // Prepare window and drawing resources
     let mut window: PistonWindow = WindowSettings::new("NESemu", [256*3, 240*2])
