@@ -71,12 +71,16 @@ fn main() {
         .exit_on_esc(true).graphics_api(OpenGL::V3_2).build().unwrap();
     let mut event_settings = EventSettings::new();
     event_settings.max_fps = 60;
+    event_settings.ups = 107400;
     let mut events = Events::new(event_settings);
     let mut glyphs = get_glyphs(&mut window);
 
     // Main loop
     let mut run = false;
     while let Some(event) = events.next(&mut window) {
+        if let Some(_) = event.update_args() {
+            if run { cpu.clock(&mut bus); }
+        }
         if let Some(_) = event.render_args() {
             render(&mut window, &event, &mut glyphs, &cpu, &bus, &disasm);
         }

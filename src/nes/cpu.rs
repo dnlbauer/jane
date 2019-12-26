@@ -454,8 +454,12 @@ impl CPU {
         unimplemented!()
     }
 
-    fn op_INC<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    fn op_INC<T: Memory>(&mut self, bus: &mut T, addr: Word) {
+        let val = self.readb(bus, addr);
+        let val = val.wrapping_add(1);
+        self.writeb(bus, addr, val);
+        self.set_flag(ZERO, val == 0);
+        self.set_flag(NEGATIVE, (val & 0x80) != 0)
     }
 
     fn op_INX<T: Memory>(&mut self, bus: &T) {
