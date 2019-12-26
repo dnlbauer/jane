@@ -86,6 +86,8 @@ impl Cartridge {
             id => bail!("Mapper {:04} not supported", id)
         };
 
+
+        debug!("Cartrige loaded. mapper: {:?}", &mapper);
         Ok(Cartridge {
             prg_rom: prg_rom,
             chr_rom: chr_rom,

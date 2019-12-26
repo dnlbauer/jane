@@ -16,6 +16,7 @@ use nes::cartridge::*;
 use nes::disasm::*;
 use opengl_graphics::OpenGL;
 use log::Level;
+use failure::Error;
 
 use gfx_glyph::{Section, GlyphBrushBuilder,GlyphBrush, Scale};
 use gfx_device_gl::{Resources,Factory};
@@ -25,19 +26,19 @@ const BG_COLOR: [f32; 4] = [0.0, 0.0, 252.0/256.0, 1.0];
 // font options
 const FT_SIZE_PX: f32 = 11.0;
 const FT_COLOR_WHITE: [f32; 4] = [1.0; 4];
-const FT_COLOR_RED: [f32; 4] = [168.0/256.0, 0.0, 32.0/256.0, 1.0];
+const FT_COLOR_RED: [f32; 4] = [168.0/256.0, 32.0/256.0, 0.0, 1.0];
 const FT_COLOR_GREEN: [f32; 4] = [0.0, 168.0/256.0, 0.0, 1.0];
 const FT_LINE_DISTANCE: f32 = FT_SIZE_PX * 0.5;
 lazy_static! {
     static ref FT_SCALE: Scale = Scale::uniform(FT_SIZE_PX);
 }
 
-fn main() {
-    simple_logger::init_with_level(Level::Error).unwrap();
+fn main() -> Result<(), Error> {
+    simple_logger::init_with_level(Level::Debug).unwrap();
    
     let mut bus = MemoryBus::new();
-    let cartridge = Path::new("test_roms/registers.nes");
-    let cartridge = Cartridge::new(cartridge).unwrap();
+    let cartridge = Path::new("test_roms/nestest.nes");
+    let cartridge = Cartridge::new(cartridge)?;
     bus.insert_cartrige(cartridge);
 
     // Load little test program into ram
@@ -55,7 +56,7 @@ fn main() {
     // bus.writew(0xfffc, offset);
 
     // disassemble instructions
-    let disasm = Disasm::disassemble(&bus, 0xe1ff, 0xffff-2).unwrap();
+    let disasm = Disasm::disassemble(&bus, 0xC000, 0xFFFF).unwrap();
     // println!("{:?}", disasm.instructions);
     // return;
     // let disasm = Disasm::disassemble(&[], 0x000).unwrap();
@@ -63,6 +64,8 @@ fn main() {
     // Create and reset CPU 
     let mut cpu: CPU = CPU::new();
     cpu.find_pc_addr(&bus);
+    cpu.regs.pc = 0xC000;
+    // return Ok(());
     // cpu.reset(&bus);
 
     // Prepare window and drawing resources
@@ -115,6 +118,7 @@ fn main() {
             }
         }     
     }
+    Ok(())
 }
 
 fn render(window: &mut PistonWindow, event: &Event,
@@ -220,6 +224,15 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 color: color,
                 ..Section::default()
             });
+        position.0 += 16.0;
+        let color = FT_COLOR_WHITE;
+        glyphs.queue(Section {
+                text: &format!("{:#06x}", cpu.regs.flags),
+                scale: *FT_SCALE,
+                screen_position: position,
+                color: color,
+                ..Section::default()
+            });
 
         let cpu_register_texts = [
             &format!("A: {0:#x} ({0})", cpu.regs.a),
@@ -296,7 +309,7 @@ fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, bus: &MemoryBus, o
     }
 
     position_y.1 += FT_LINE_DISTANCE+FT_SIZE_PX * 1.5;
-    for page in (0x6000..0x60FF).step_by(16) {
+    for page in (0x2000..0x20FF).step_by(16) {
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;
         let mut line = format!("{:#06x}:", page);
         (0u16..16u16).map(|offset| offset + page)

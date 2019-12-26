@@ -136,6 +136,11 @@ impl CPU {
         } 
     }
 
+    fn set_flag_nz(&mut self, val: Byte) {
+        self.set_flag(ZERO, val == 0);
+        self.set_flag(NEGATIVE, (val & 0x80) == 0);
+    }
+
     pub fn get_flag(&self, flag: Byte) -> Byte {
         if self.regs.flags & flag > 0 {
             1
@@ -340,9 +345,8 @@ impl CPU {
         let val = tmp2.0;
         let overflow = tmp1.1 || tmp2.1;
         self.set_flag(CARRY, (val & 0xFF) > 255);
-        self.set_flag(ZERO, val == 0);
-        self.set_flag(NEGATIVE, (val & 0x80) == 1);
         self.set_flag(OVERFLOW, overflow);
+        self.set_flag_nz(val as Byte);
         self.regs.a = val as Byte;
     }
 
@@ -366,25 +370,44 @@ impl CPU {
         unimplemented!()
     }
 
-    fn op_BIT<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    // bits 7 and 6 of operand are transfered to bit 7 and 6 of SR (N,V);
+    // the zeroflag is set to the result of operand AND accumulator.
+    fn op_BIT<T: Memory>(&mut self, bus: &T, addr: Word) {
+        let val = self.readb(bus, addr);
+        self.set_flag(OVERFLOW, (val & OVERFLOW) == 1);
+        self.set_flag(NEGATIVE, (val & NEGATIVE) == 1);
+        println!("{:#06x}: {}", addr, val);
+        println!("{}", (val & self.regs.a));
+        self.set_flag(ZERO, (val & self.regs.a) == 0);
     }
 
-    fn op_BMI<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    // Jump to address
+    fn jump(&mut self, addr: Addr) {
+        let old_addr = self.regs.pc;
+        self.regs.pc = addr;
+        println!("Jumping from {:#x} to {:#x}", old_addr, addr);
     }
 
-    // Branch if 0 flag is set
-    fn op_BNE(&mut self, addr: Word) {
-        if self.get_flag(ZERO) == 0 {
-            let old_addr = self.regs.pc;
-            self.regs.pc = addr;
-            println!("Jumping from {:#x} to {:#x}", old_addr, addr);
+
+    // Branch if negative flag is set
+    fn op_BMI<T: Memory>(&mut self, bus: &T, addr: Addr) {
+        if self.get_flag(NEGATIVE) == 1 {
+            self.jump(addr);
         }
     }
 
-    fn op_BPL<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    // Branch if 0 flag is set
+    fn op_BNE(&mut self, addr: Addr) {
+        if self.get_flag(ZERO) == 0 {
+            self.jump(addr);
+        }
+    }
+
+    // Branch if negative flag is unset
+    fn op_BPL<T: Memory>(&mut self, bus: &T, addr: Addr) {
+        if self.get_flag(NEGATIVE) == 0 {
+            self.jump(addr);
+        }
     }
 
     fn op_BRK<T: Memory>(&mut self, bus: &T, val: Word) {
@@ -439,15 +462,13 @@ impl CPU {
     // Decrement X
     fn op_DEX(&mut self) {
         self.regs.x = self.regs.x.wrapping_sub(1);
-        self.set_flag(ZERO, self.regs.x == 0);
-        self.set_flag(NEGATIVE, (self.regs.x & 0x80) != 0)
+        self.set_flag_nz(self.regs.x);
     }
 
     // Decrement Y
     fn op_DEY(&mut self) {
         self.regs.y = self.regs.y.wrapping_sub(1);
-        self.set_flag(ZERO, self.regs.y == 0);
-        self.set_flag(NEGATIVE, (self.regs.y & 0x80) != 0)
+        self.set_flag_nz(self.regs.y);
     }
 
     fn op_EOR<T: Memory>(&mut self, bus: &T, val: Word) {
@@ -458,25 +479,22 @@ impl CPU {
         let val = self.readb(bus, addr);
         let val = val.wrapping_add(1);
         self.writeb(bus, addr, val);
-        self.set_flag(ZERO, val == 0);
-        self.set_flag(NEGATIVE, (val & 0x80) != 0)
+        self.set_flag_nz(val);
     }
 
     fn op_INX<T: Memory>(&mut self, bus: &T) {
         self.regs.x = self.regs.x.wrapping_add(1);
-        self.set_flag(ZERO, self.regs.x == 0);
-        self.set_flag(NEGATIVE, (self.regs.x & 0x80) != 0)
+        self.set_flag_nz(self.regs.x);
     }
 
     fn op_INY<T: Memory>(&mut self, bus: &T) {
         self.regs.y = self.regs.y.wrapping_add(1);
-        self.set_flag(ZERO, self.regs.y == 0);
-        self.set_flag(NEGATIVE, (self.regs.y & 0x80) != 0)
+        self.set_flag_nz(self.regs.y);
     }
 
     // Jump to address (set pc)
     fn op_JMP<T: Memory>(&mut self, bus: &T, addr: Word) {
-        self.regs.pc = addr;
+        self.jump(addr);
     }
 
     // Jump to subroutine (leaves trace on the stack)
@@ -486,31 +504,28 @@ impl CPU {
         self.regs.sp -= 1;
         bus.writeb(STACK_BASE_ADDR + self.regs.sp as Word, (self.regs.pc & 0x00ff) as Byte);
         self.regs.sp -= 1;
-        self.regs.pc = addr;
+        self.jump(addr);
     }
 
     // Read value from addr into A
     fn op_LDA<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.a = val;
-        self.set_flag(ZERO, val == 0);
-        self.set_flag(NEGATIVE, (val & 0x80) != 0);
+        self.set_flag_nz(val);
     }
 
     // Read value from addr into X
     fn op_LDX<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.x = val;
-        self.set_flag(ZERO, val == 0);
-        self.set_flag(NEGATIVE, (val & 0x80) != 0);
+        self.set_flag_nz(val);
     }
 
     // Read value from addr into Y
     fn op_LDY<T: Memory>(&mut self, bus: &T, addr: Word) {
         let val = bus.readb(addr);
         self.regs.y = val;
-        self.set_flag(ZERO, val == 0);
-        self.set_flag(NEGATIVE, (val & 0x80) != 0);
+        self.set_flag_nz(val);
     }
 
     fn op_LSR<T: Memory>(&mut self, bus: &T, val: Word) {
@@ -521,8 +536,9 @@ impl CPU {
         // does nothing
     }
 
-    fn op_ORA<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+    fn op_ORA<T: Memory>(&mut self, bus: &T, addr: Addr) {
+        self.regs.a |= self.readb(bus, addr);
+        self.set_flag_nz(self.regs.a);
     }
 
     fn op_PHA<T: Memory>(&mut self, bus: &T, val: Word) {
@@ -564,7 +580,12 @@ impl CPU {
     }
 
     fn op_RTS<T: Memory>(&mut self, bus: &T, val: Word) {
-        unimplemented!()
+        self.regs.sp += 1;
+        let lo = bus.readb(0x0100 + self.regs.sp as Addr);
+        self.regs.sp += 1;
+        let hi = bus.readb(0x0100 + self.regs.sp as Addr);
+        let addr = (hi as Addr) << 8 | lo as Addr;
+        self.regs.pc = addr + 1; 
     }
 
     fn op_SBC<T: Memory>(&mut self, bus: &T, val: Word) {

@@ -20,16 +20,22 @@ impl Disasm {
     pub fn disassemble(mem: &MemoryBus, start: Addr, stop: Addr) -> Result<Self, Error> {
         let mut instructions = Vec::new();
         let mut addresses = Vec::new();
-        let mut mem_iter = ((start as usize) .. (stop as usize)+1).map({|a| a as Addr});
+        let mut mem_iter = ((start as usize) .. (stop as usize)).map({|a| a as Addr});
         while let Some(addr) = mem_iter.next() {
+
             let opcode = mem.readb(addr);
+            
             
             // Decode opcode, default to NOP/IMP to "skip" the byte
             let i = Instruction::decode_op(opcode)
                 .unwrap_or(Instruction::decode_op(0xeau8).unwrap()); 
+            
             // debug!("{:?}", i);
             let args = match i.addr_mode {
-                AddrMode::IMM => format!("#{0:02x} ({0})", mem.readb(mem_iter.next().unwrap())),
+                AddrMode::IMM => {
+                    let val = mem.readb(mem_iter.next().unwrap());
+                    format!("#{0:02x} ({0})", val)
+                },
                 AddrMode::ZP0 | AddrMode::ZPX | AddrMode::ZPY  => {
                     let rel_addr = mem.readb(mem_iter.next().unwrap());
                     format!("{:#04x}", rel_addr)
@@ -58,9 +64,13 @@ impl Disasm {
             };
 
             let s = format!("{:#06x}: {} {} ({})", addr, i.operation, args, i.addr_mode);
-            // debug!("{:#06x} {}", addr, &s);
+            // println!("opcode: {:#04x} {:?}", opcode, i);
+            // println!("{}", &s);
+
             instructions.push(s);
             addresses.push(addr);
+
+                        
         }
         Ok(Disasm { start, stop, instructions, addresses })
     }

@@ -16,6 +16,7 @@ pub trait Mapper {
 // Cartrige:
 // 0x4000-0xffff -> first 16K 
 // 0xc000-0xffff -> last 16K or mirror or 0x8000-0xbfff
+#[derive(Debug)]
 pub struct Mapper0 {
     prg_banks: Byte,
     chr_banks: Byte, 
@@ -29,17 +30,23 @@ impl Mapper0 {
 
 impl Mapper for Mapper0 {
     fn map_read_addr(&self, addr: Addr) -> Addr {
-        if self.prg_banks > 1 {
-            addr & 0x7fff
-        } else {
-            addr & 0x3fff
+        if 0x8000 <= addr && addr <= 0xFFFF { 
+            if self.prg_banks > 1 {
+                return addr & 0x7fff;
+            } else {
+                return addr & 0x3fff;
+            }
         }
+        0x0000
     }
     fn map_write_addr(&self, addr: Addr) -> Addr {
-        if self.prg_banks > 1 {
-            addr & 0x7fff
-        } else {
-            addr & 0x3fff
+        if 0x8000 <= addr && addr <= 0xFFFF { 
+            if self.prg_banks > 1 {
+                return addr & 0x7fff;
+            } else {
+                return addr & 0x3fff;
+            }
         }
+        0x0000
     }
 }

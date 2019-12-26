@@ -44,14 +44,14 @@ pub trait Clockable {
 // A simple bus giving access to a chunk of memory
 // and the cartrige
 pub struct MemoryBus {
-    ram: [Byte; 0x07ff],  // 2kb
+    ram: [Byte; 0x0800],  // 2kb
     cartrige: Option<Cartridge>
 }
 
 impl MemoryBus {
     pub fn new() -> MemoryBus {
         MemoryBus {
-            ram: [0; 0x07ff],
+            ram: [0; 0x0800],
             cartrige: None,
         }
     }
@@ -65,12 +65,12 @@ impl Memory for MemoryBus {
     
     fn readb(&self, addr: Addr) -> Byte {
         if let Some(cartrige) = &self.cartrige {
-            if CART_ADDR_RANGE[0] <= addr && addr < CART_ADDR_RANGE[1] {
+            if CART_ADDR_RANGE[0] <= addr && addr <= CART_ADDR_RANGE[1] {
                 return cartrige.readb(addr)
             } 
         }
 
-        if RAM_ADDR_RANGE[0] <= addr && addr < RAM_ADDR_RANGE[1] {
+        if RAM_ADDR_RANGE[0] <= addr && addr <= RAM_ADDR_RANGE[1] {
             // Ram is 3x mirrored after 07ff
             return self.ram[(addr & 0x07ff) as usize]
         }
@@ -79,12 +79,12 @@ impl Memory for MemoryBus {
 
     fn writeb(&mut self, addr: Addr, data: Byte) {
         if let Some(cartrige) = &mut self.cartrige {
-            if CART_ADDR_RANGE[0] <= addr && addr < CART_ADDR_RANGE[1] {
+            if CART_ADDR_RANGE[0] <= addr && addr <= CART_ADDR_RANGE[1] {
                 cartrige.writeb(addr, data)
             } 
         }
 
-        if RAM_ADDR_RANGE[0] <= addr && addr < RAM_ADDR_RANGE[1] {
+        if RAM_ADDR_RANGE[0] <= addr && addr <= RAM_ADDR_RANGE[1] {
             // Ram is 3x mirrored after 07ff
             self.ram[(addr & 0x07ff) as usize] = data
         }
