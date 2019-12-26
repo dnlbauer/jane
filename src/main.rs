@@ -20,11 +20,13 @@ use log::Level;
 use gfx_glyph::{Section, GlyphBrushBuilder,GlyphBrush, Scale};
 use gfx_device_gl::{Resources,Factory};
 
+const BG_COLOR: [f32; 4] = [0.0, 0.0, 252.0/256.0, 1.0];
+
 // font options
 const FT_SIZE_PX: f32 = 11.0;
 const FT_COLOR_WHITE: [f32; 4] = [1.0; 4];
-const FT_COLOR_RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-const FT_COLOR_GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+const FT_COLOR_RED: [f32; 4] = [168.0/256.0, 0.0, 32.0/256.0, 1.0];
+const FT_COLOR_GREEN: [f32; 4] = [0.0, 168.0/256.0, 0.0, 1.0];
 const FT_LINE_DISTANCE: f32 = FT_SIZE_PX * 0.5;
 lazy_static! {
     static ref FT_SCALE: Scale = Scale::uniform(FT_SIZE_PX);
@@ -119,7 +121,7 @@ fn render(window: &mut PistonWindow, event: &Event,
     glyphs: &mut GlyphBrush<Resources, Factory>,
     cpu: &CPU, bus: &MemoryBus, disasm: &Disasm) {
     window.draw_2d(event, |c, g, d| {
-        clear([0.0, 0.0, 1.0, 1.0], g);
+        clear(BG_COLOR, g);
 
 
         let debug_offset = [10.0, 10.0];
