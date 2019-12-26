@@ -75,6 +75,7 @@ fn main() {
     let mut glyphs = get_glyphs(&mut window);
 
     // Main loop
+    let mut run = false;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.render_args() {
             render(&mut window, &event, &mut glyphs, &cpu, &bus, &disasm);
@@ -82,13 +83,24 @@ fn main() {
         if let Some(Button::Keyboard(key)) = event.press_args() {
             match key {
                 Key::C => cpu.clock(&mut bus),  // advance one clock
-                Key::Space => {  // advance to next instruction
+                Key::S => {  // advance to next instruction
                     cpu.clock(&mut bus);
                     while cpu.is_ahead() {
                         cpu.clock(&mut bus);
                     }
                 }
                 Key::R => cpu.reset(&mut bus),
+                Key::Space => run = !run,
+                Key::Up => {
+                    event_settings.ups = (event_settings.ups as f64 * 1.1) as u64 + 1;
+                    events = Events::new(event_settings);
+                    debug!("UPS: {}", event_settings.ups);
+                }
+                Key::Down => {
+                    event_settings.ups = (event_settings.ups as f64 * 0.91) as u64;
+                    events = Events::new(event_settings);
+                    debug!("UPS: {}", event_settings.ups);
+                }
                 _ => { }
             }
         }         
