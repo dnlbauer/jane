@@ -32,7 +32,7 @@ impl Header {
         f.read_exact(&mut flags)?;
 
         // Unused
-        f.seek(SeekFrom::Current(5));
+        f.seek(SeekFrom::Current(5))?;
 
         Ok(Header {
             prg_rom_chunks: rom_sizes[0],
@@ -69,11 +69,10 @@ impl Cartridge {
         let header = Header::new(&mut f)?;
         debug!("{:?}", header);
 
-        let mut current_pos = 0;
-        current_pos = f.seek(SeekFrom::Start(16))?;
+        f.seek(SeekFrom::Start(16))?;
 
         if header.has_trainer() {
-            current_pos = f.seek(SeekFrom::Current(512))?;
+            f.seek(SeekFrom::Current(512))?;
         }
 
         let mut prg_rom = vec!(0; header.prg_rom_chunks as usize * 16384);
