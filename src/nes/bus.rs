@@ -62,7 +62,7 @@ impl MemoryBus {
 }
 
 impl Memory for MemoryBus {
-    
+
     fn readb(&self, addr: Addr) -> Byte {
         if let Some(cartrige) = &self.cartrige {
             if CART_ADDR_RANGE[0] <= addr && addr <= CART_ADDR_RANGE[1] {

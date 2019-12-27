@@ -86,6 +86,7 @@ fn main() -> Result<(), Error> {
     let mut run = false;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.update_args() {
+            // if cpu.regs.pc == 0xD031 || cpu.regs.pc == 0xD01A  { run = false }
             if run {
                 cpu.clock(&mut bus);
             }
@@ -292,7 +293,7 @@ fn render_disasm(glyphs: &mut GlyphBrush<Resources, Factory>,
 
 fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, bus: &MemoryBus, offset: [f32; 2]) {
     let mut position_y = (offset[0], offset[1]);
-    for page in (0x0100..0x01FF).step_by(16) {
+    for page in (0x0000..0x00FF).step_by(16) {
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;
         let mut line = format!("{:#06x}:", page);
         (0u16..16u16).map(|offset| offset + page)
@@ -309,7 +310,7 @@ fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, bus: &MemoryBus, o
     }
 
     position_y.1 += FT_LINE_DISTANCE+FT_SIZE_PX * 1.5;
-    for page in (0x2000..0x20FF).step_by(16) {
+    for page in (0x0400..0x06FF).step_by(16) {
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;
         let mut line = format!("{:#06x}:", page);
         (0u16..16u16).map(|offset| offset + page)

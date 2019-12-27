@@ -24,7 +24,7 @@ impl Registers {
             y: 0,
             sp: 0x00FD,
             pc: 0x0000,
-            flags: 0b00100100,
+            flags: 0x24,
         }
     }
 }
@@ -371,24 +371,27 @@ impl CPU {
     fn am_IZX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let ind_addr = self.readb_pc(bus);
 
-        // since its a zero page addr, we are only interested in low
-        let addr = ind_addr.wrapping_add(self.regs.x);
-
-        (addr as Word, false)  
+        let lo_addr = ind_addr.wrapping_add(self.regs.x);
+        let hi_addr = ind_addr.wrapping_add(self.regs.x).wrapping_add(1);
+        let lo = self.readb(bus, lo_addr as Word);
+        let hi = self.readb(bus, hi_addr as Word);
+        ((hi as Word) << 8 | lo as Word, false) 
     }
 
-    // the next 8 bits + y are an address. This address stores the real address
-    // that is used for the operation.
-    // Hardware bug: Normally, if lo of the supplied address is 0xFF, high byte
-    // must be read from the next page. Instead it wraps around and reads from
-    // the same page!
     fn am_IZY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let ind_addr = self.readb_pc(bus);
 
-        // since its a zero page addr, we are only interested in low
-        let addr = ind_addr.wrapping_add(self.regs.y);
+        let lo = self.readb(bus, ind_addr as Word);
+        let hi = self.readb(bus, ind_addr.wrapping_add(1) as Word);
 
-        (addr as Word, false)  
+        let addr = (hi as Word) << 8 | lo as Word;
+        let addr = addr.wrapping_add(self.regs.y as Word);
+
+        if addr & HI != (hi as Word) << 8 {
+            (addr, true)
+        } else {
+            (addr, false)
+        }
     }
 
     // Operations
@@ -402,15 +405,19 @@ impl CPU {
     // Negative bit is set
     fn op_ADC<T: Memory>(&mut self, bus: &T, addr: Word) -> bool {
         let val = self.readb(bus, addr) as Word;
-        let tmp1 = (self.regs.a as Word).overflowing_add(val);
-        let result = tmp1.0.overflowing_add(self.get_flag(CARRY) as Word);
+        let tmp = self.regs.a as Word + val + self.get_flag(CARRY) as Word;
+
+        self.set_flag(CARRY, tmp > 255);
+        self.set_flag_nz(tmp as Byte);
         
-        self.regs.a = result.0 as Byte;
-        let is_overflown = tmp1.1 || result.1;
-         
-        self.set_flag(CARRY, (result.0 & LO) > 255);
+        // There are two cases where the overflow bit should be set. if we look
+        // at the last bit of val and A: a) 0 + 0 = 1 b) 1 + 1 = 0. This
+        // expression selects for both of them
+        let is_overflown = (!(self.regs.a as Word ^ val) &
+            (self.regs.a as Word ^ tmp)) & 0x0080 != 0;
         self.set_flag(OVERFLOW, is_overflown);
-        self.set_flag_nz(self.regs.a);
+        
+        self.regs.a = tmp as Byte; 
         true
     }
 
@@ -423,7 +430,7 @@ impl CPU {
     fn op_AND<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
         let val = self.readb(bus, addr);
         self.regs.a &= val;
-        self.set_flag_nz(val as Byte);
+        self.set_flag_nz(self.regs.a);
         true
     }
 
@@ -437,16 +444,22 @@ impl CPU {
     // If the result is 0, Zero bit is set. If the result if negative,
     // Negative bit is set
     fn op_ASL<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
-        let val = self.readb(bus, addr);
+        // LSR works on memory or A. We can differenciate by the addr mode
+        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let val = if *addr_mode == AddrMode::IMP {
+            self.regs.a
+        } else {
+            self.readb(bus, addr)
+        };
         let shifted = (val << 1) as Byte;
+        self.set_flag(CARRY, (val & 0b1000000) == 0);
 
-        if Instruction::decode_op(self.curr_op).unwrap().addr_mode == AddrMode::IMP {
+        if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
         } else {
             self.writeb(bus, addr, shifted);
         }
 
-        self.set_flag(CARRY, (val & 0b1000000) != 0);
         self.set_flag_nz(shifted);
         false
     }
@@ -618,7 +631,7 @@ impl CPU {
     // Compare Y
     fn op_CPY<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
         let val = self.readb(bus, addr);
-        let tmp = (self.regs.a as Word).wrapping_sub(val as Word);
+        let tmp = (self.regs.y as Word).wrapping_sub(val as Word);
 
         self.set_flag(CARRY, self.regs.y >= val);
         self.set_flag_nz(tmp as Byte);
@@ -749,12 +762,19 @@ impl CPU {
     // Each of the bits in A or M is shift one place to the right. The bit
     // that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
     fn op_LSR<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
-        let val = self.readb(bus, addr) as Word;
-        self.set_flag(CARRY, (val & 0b00000001) == 1);
+        // LSR works on memory or A. We can differenciate by the addr mode
+        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let val = if *addr_mode == AddrMode::IMP {
+            self.regs.a as Word
+        } else {
+            self.readb(bus, addr) as Word
+        };
+
+        self.set_flag(CARRY, (val & 0b00000001) != 0);
         let shifted = (val >> 1) as Byte;
         self.set_flag_nz(shifted);
 
-        if Instruction::decode_op(self.curr_op).unwrap().addr_mode == AddrMode::IMP {
+        if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
         } else {
             self.writeb(bus, addr, shifted);
@@ -787,18 +807,16 @@ impl CPU {
     // PHP - Push Processor Status
     // Pushes a copy of the status flags on to the stack.
     fn op_PHP<T: Memory>(&mut self, bus: &mut T) -> bool {
-        let tmp = self.regs.flags | BREAK | UNUSED;
+        let tmp = self.regs.flags | BREAK;
         self.pushb_sp(bus, tmp);
         self.set_flag(BREAK, false);
-        self.set_flag(UNUSED, false);
         false
     }
 
     // Read from stack into A
     fn op_PLA<T: Memory>(&mut self, bus: &T) -> bool {
         self.regs.a = self.popb_sp(bus);
-        self.set_flag(ZERO, self.regs.a == 0);
-        self.set_flag(NEGATIVE, (self.regs.a & 0x80) == 1);
+        self.set_flag_nz(self.regs.a);
         false
     }
 
@@ -807,7 +825,10 @@ impl CPU {
     // flags will take on new states as determined by the value pulled.
     fn op_PLP<T: Memory>(&mut self, bus: &T) -> bool {
         self.regs.flags = self.popb_sp(bus);
-        self.set_flag(UNUSED, true); // Just to be sure this keeps set.
+
+        // Im not sure why this is set to false and stack value is not used
+        // but that's how the nestest.log shows it..
+        self.set_flag(BREAK, false);  
         false
     }
 
@@ -816,13 +837,18 @@ impl CPU {
     // filled with the current value of the carry flag whilst the old bit 7
     // becomes the new carry flag value.
     fn op_ROL<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
-        let val = self.readb(bus, addr) as Word;
+        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let val = if *addr_mode == AddrMode::IMP {
+            self.regs.a as Word
+        } else {
+            self.readb(bus, addr) as Word
+        };
         let shifted = (val << 1) as Byte | self.get_flag(CARRY);
         
-        self.set_flag(CARRY, (val & 0b1000000) > 0);
+        self.set_flag(CARRY, (val & 0b1000000) == 0);
         self.set_flag_nz(shifted);
 
-        if Instruction::decode_op(self.curr_op).unwrap().addr_mode == AddrMode::IMP {
+        if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted as Byte;
         } else {
             self.writeb(bus, addr, shifted);
@@ -835,13 +861,19 @@ impl CPU {
     // filled with the current value of the carry flag whilst the old bit 0
     // becomes the new carry flag value.
     fn op_ROR<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
-        let val = self.readb(bus, addr) as Word;
+        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let val = if *addr_mode == AddrMode::IMP {
+            self.regs.a as Word
+        } else {
+            self.readb(bus, addr) as Word
+        };
+
         let shifted = (val >> 1) as Byte | (self.get_flag(CARRY) << 7);
         
         self.set_flag(CARRY, (val & 0b00000001) > 0);
         self.set_flag_nz(shifted);
 
-        if Instruction::decode_op(self.curr_op).unwrap().addr_mode == AddrMode::IMP {
+        if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
         } else {
             self.writeb(bus, addr, shifted);
@@ -856,7 +888,6 @@ impl CPU {
     fn op_RTI<T: Memory>(&mut self, bus: &T) -> bool {
         self.regs.flags = self.popb_sp(bus);
         self.regs.flags &= !BREAK;
-        self.regs.flags &= !UNUSED;
         
         let pc_lo = self.popb_sp(bus) as Word;
         let pc_hi = self.popb_sp(bus) as Word;
@@ -889,16 +920,20 @@ impl CPU {
         // invert buttom 8 bits
         let val = val ^ LO;
 
-        // Now its a simple addition
-        let tmp1 = (self.regs.a as Word).overflowing_add(val);
-        let result = tmp1.0.overflowing_add(self.get_flag(CARRY) as Word);
+        // Now it's similar to ADC
+        let tmp = self.regs.a as Word + val + self.get_flag(CARRY) as Word;
+
+        self.set_flag(CARRY, tmp > 255);
+        self.set_flag_nz(tmp as Byte);
         
-        self.regs.a = result.0 as Byte;
-        let is_overflown = tmp1.1 || result.1;
-         
-        self.set_flag(CARRY, (result.0 & LO) > 255);
+        // There are two cases where the overflow bit should be set. if we look
+        // at the last bit of val and A: a) 0 + 0 = 1 b) 1 + 1 = 0. This
+        // expression selects for both of them
+        let is_overflown = (!(self.regs.a as Word ^ val) &
+            (self.regs.a as Word ^ tmp)) & 0x0080 != 0;
         self.set_flag(OVERFLOW, is_overflown);
-        self.set_flag_nz(self.regs.a);
+        
+        self.regs.a = tmp as Byte; 
         true
     }
 
@@ -943,40 +978,35 @@ impl CPU {
     // a to x
     fn op_TAX(&mut self) -> bool {
         self.regs.x = self.regs.a;
-        self.set_flag(ZERO, self.regs.x == 0);
-        self.set_flag(NEGATIVE, (self.regs.x & 0x80) == 1);
+        self.set_flag_nz(self.regs.x);
         false
     }
 
     // a to y
     fn op_TAY(&mut self) -> bool {
         self.regs.y = self.regs.a;
-        self.set_flag(ZERO, self.regs.y == 0);
-        self.set_flag(NEGATIVE, (self.regs.y & 0x80) == 1);
+        self.set_flag_nz(self.regs.y);
         false
     }
 
     // stack pointer to x
     fn op_TSX(&mut self) -> bool {
         self.regs.x = self.regs.sp;
-        self.set_flag(ZERO, self.regs.x == 0);
-        self.set_flag(NEGATIVE, (self.regs.x & 0x80) == 1);
+        self.set_flag_nz(self.regs.x);
         false
     }
 
     // transfer x to a
     fn op_TXA(&mut self) -> bool {
         self.regs.a = self.regs.x;
-        self.set_flag(ZERO, self.regs.a == 0);
-        self.set_flag(NEGATIVE, (self.regs.a & 0x80) == 1);
+        self.set_flag_nz(self.regs.x);
         false
     }
 
     // transfer y to a
     fn op_TYA(&mut self) -> bool {
         self.regs.a = self.regs.y;
-        self.set_flag(ZERO, self.regs.a == 0);
-        self.set_flag(NEGATIVE, (self.regs.a & 0x80) == 1);
+        self.set_flag_nz(self.regs.a);
         false
     }   
 

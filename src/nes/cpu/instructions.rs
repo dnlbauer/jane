@@ -6,18 +6,18 @@ use std::fmt::{Debug,Display};
 
 #[derive(Debug,PartialEq)]
 pub enum AddrMode {
-    IMP,
-    IMM,
-    ZP0,
-    ZPX,
-    ZPY,
-    REL,
-    ABS,
-    ABX,
-    ABY,
-    IND,
-    IZX,
-    IZY,
+    IMP, // Implied
+    IMM, // Immediate
+    ZP0, // Zero page
+    ZPX, // Zero Page with X (ZPX and ZPY are the same at nesdev) 
+    ZPY, // Zero Page with Y (ZPX and ZPY are the same at nesdev) 
+    REL, // Relatvive (Only for branching)
+    ABS, // Absolute address
+    ABX, // Absolute with X offset
+    ABY, // Absolute with Y offset
+    IND, // Indirect addressing
+    IZX, // Pre Indexed 
+    IZY, // Post Indexed
 }
 
 impl fmt::Display for AddrMode {
@@ -27,7 +27,7 @@ impl fmt::Display for AddrMode {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub enum Operation {
     ADC,
     AND,
