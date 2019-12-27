@@ -24,7 +24,7 @@ impl Registers {
             y: 0,
             sp: 0x00FD,
             pc: 0x0000,
-            flags: 0x0034,
+            flags: 0b00100100,
         }
     }
 }
@@ -173,7 +173,7 @@ impl CPU {
 
     fn set_flag_nz(&mut self, val: Byte) {
         self.set_flag(ZERO, val == 0);
-        self.set_flag(NEGATIVE, (val & 0x80) == 0);
+        self.set_flag(NEGATIVE, (val & NEGATIVE) > 0);
     }
 
     pub fn get_flag(&self, flag: Byte) -> Byte {
@@ -488,8 +488,8 @@ impl CPU {
     // the zeroflag is set to the result of operand AND accumulator.
     fn op_BIT<T: Memory>(&mut self, bus: &T, addr: Word) -> bool {
         let val = self.readb(bus, addr);
-        self.set_flag(OVERFLOW, (val & OVERFLOW) == 1);
-        self.set_flag(NEGATIVE, (val & NEGATIVE) == 1);
+        self.set_flag(OVERFLOW, (val & OVERFLOW) > 1);
+        self.set_flag(NEGATIVE, (val & NEGATIVE) > 1);
         self.set_flag(ZERO, (val & self.regs.a) == 0);
         false
     }

@@ -34,7 +34,7 @@ lazy_static! {
 }
 
 fn main() -> Result<(), Error> {
-    simple_logger::init_with_level(Level::Debug).unwrap();
+    simple_logger::init_with_level(Level::Info).unwrap();
    
     let mut bus = MemoryBus::new();
     let cartridge = Path::new("test_roms/nestest.nes");
