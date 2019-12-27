@@ -37,15 +37,17 @@ impl Debug for Registers {
 }
 
 pub const STACK_BASE_ADDR: Addr = 0x0100;
+pub const LO: Addr  = 0x00FF;
+pub const HI: Addr  = 0xFFFF;
 
-pub const CARRY: Byte = 1 << 0;
-pub const ZERO: Byte = 1 << 1;
-pub const IRQ: Byte = 1 << 2;
-pub const DECIMAL: Byte = 1 << 3;
-pub const BREAK: Byte = 1 << 4;
-pub const UNUSED: Byte = 1 << 5;
-pub const OVERFLOW: Byte = 1 << 6;
-pub const NEGATIVE: Byte = 1 << 7;
+pub const CARRY: Byte = 1 << 0;    // 0000 0001 0x01
+pub const ZERO: Byte = 1 << 1;     // 0000 0010 0x02
+pub const IRQ: Byte = 1 << 2;      // 0000 0100 0x04
+pub const DECIMAL: Byte = 1 << 3;  // 0000 1000 0x08
+pub const BREAK: Byte = 1 << 4;    // 0001 0000 0x10
+pub const UNUSED: Byte = 1 << 5;   // 0010 0000 0x20
+pub const OVERFLOW: Byte = 1 << 6; // 0100 0000 0x40
+pub const NEGATIVE: Byte = 1 << 7; // 1000 0000 0x80
 
 pub struct CPU {
     pub regs: Registers,
@@ -130,6 +132,36 @@ impl CPU {
         val
     }
 
+    // Pop a byte from the SP
+    fn popb_sp<T: Memory>(&mut self, bus: &T) -> Byte {
+        self.regs.sp += 1;
+        let val = self.readb(bus, STACK_BASE_ADDR + self.regs.sp as Word);
+        val
+    }
+
+    // Pop a word from the stack
+    fn popw_sp<T: Memory>(&mut self, bus: &T) -> Word {
+        let hi = self.popb_sp(bus);
+        let lo = self.popb_sp(bus);
+        (hi << 8) as Word & lo as Word
+    }
+
+    // Push a byte to the SP.
+    fn pushb_sp<T: Memory>(&mut self, bus: &mut T, val: Byte) {
+        self.writeb(bus, STACK_BASE_ADDR + self.regs.sp as Word, val);
+        self.regs.sp -= 1;
+    }
+
+    // push a word to the stack, lo first, hi second
+    fn pushw_sp<T: Memory>(&mut self, bus: &mut T, val: Word) {
+        let lo = ((val >> 8) & LO) as Byte;
+        let hi = (val & LO) as Byte;
+        self.writeb(bus, STACK_BASE_ADDR + self.regs.sp as Word, lo);
+        self.regs.sp -= 1;
+        self.writeb(bus, STACK_BASE_ADDR + self.regs.sp as Word, hi);
+        self.regs.sp -= 1;
+    }
+
     // Set the flag with the corresponding mask
     fn set_flag(&mut self, flag: Byte, val: bool) {
         if val {
@@ -154,7 +186,6 @@ impl CPU {
 
     // Jump to address
     fn jump(&mut self, addr: Addr) {
-        let old_addr = self.regs.pc;
         self.regs.pc = addr;
     }
 
@@ -256,19 +287,19 @@ impl CPU {
     // Absolute address on zero page
     fn am_ZP0<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let addr = self.readb_pc(bus);
-        (0x00ff & addr as Word, false) 
+        (LO & addr as Word, false) 
     }
 
     // Absolute address on zero page with x offset
     fn am_ZPX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let addr = self.readb_pc(bus) + self.regs.x;
-        (0x00ff & addr as Word , false)
+        (LO & addr as Word , false)
     }
 
     // Absolute address on zero page with y offset
     fn am_ZPY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let addr = self.readb_pc(bus) + self.regs.y;
-        (0x00ff & addr as Word, false)
+        (LO & addr as Word, false)
     }
 
     // Absolute address. Next 2 bytes of pc are the address
@@ -283,7 +314,8 @@ impl CPU {
         let tmp_addr = self.readw_pc(bus);
         let addr = tmp_addr + self.regs.x as Word;
 
-        (addr, addr & 0xFF00 != tmp_addr & 0xF00)
+        let page_cross = addr & HI != tmp_addr & HI;
+        (addr, page_cross)
     }
 
     // Absolute address with offset. Next 2 bytes of pc are the address
@@ -292,18 +324,23 @@ impl CPU {
         let tmp_addr = self.readw_pc(bus);
         let addr = tmp_addr + self.regs.y as Word;
 
-        (addr, addr & 0xFF00 != tmp_addr & 0xF00) 
+        let page_cross = addr & HI != tmp_addr & HI;
+        (addr, page_cross)
     }
 
     // Relative addressing. Only used for branching. The next byte on the 
     // pc is a signed offset from the current pc location 
     fn am_REL<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
         let rel_addr = self.readb_pc(bus) as Word;
-        if rel_addr < 0x80 {
-            (self.regs.pc + rel_addr, false)    
+        let base_addr = self.regs.pc;
+
+        // If rel_addr > 0x8000, we substract 256 to make a negative jump
+        let addr = if rel_addr < 128 {
+            base_addr + rel_addr
         } else {
-            (self.regs.pc + rel_addr - 256, false)
-        }
+            base_addr + rel_addr - 256
+        };
+        (addr, false)
     }
 
     // the next 16 bits are an address. This address stores the real address
@@ -312,29 +349,32 @@ impl CPU {
     // must be read from the next page. Instead it wraps around and reads from
     // the same page!
     fn am_IND<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let mut ind_addr = self.readw_pc(bus);
+        let ind_addr = self.readw_pc(bus);
        
-        // page boundary bug 
-        let lo = ind_addr & 0b00001111;
-        if lo == 0x00FF {
-            ind_addr -= 0x00FF; 
-        } 
+        // page boundary bug: If LO is 0x00FF, we are at the page border
+        // and need to wrap around. So hi is fetched from 0x0000 instead of
+        // 0x0100
+        let addr = if ind_addr & LO == 0x00FF {
+            let lo = self.readb(bus, ind_addr);
+            let hi_addr = ind_addr - 0x00FF;
+            let hi = self.readb(bus, hi_addr);
+            ((hi << 8) as Word | lo as Word)
+        } else { // normal behaviour
+            self.readw(bus, ind_addr)
+        };
 
-        let addr = bus.readw(ind_addr);
         (addr, false)
     }
 
-    // the next 8 bits + x are an address. This address stores the real address
+    // the next 8 bits + x are an address on the zero page. This address stores the real address
     // that is used for the operation.
-    // Hardware bug: Normally, if lo of the supplied address is 0xFF, high byte
-    // must be read from the next page. Instead it wraps around and reads from
-    // the same page!
     fn am_IZX<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let mut ind_addr = self.readb_pc(bus) as Word;
-        ind_addr += self.regs.x as Word;
+        let ind_addr = self.readb_pc(bus);
 
-        let addr = bus.readw(ind_addr & 0x00FF);
-        (addr, false)  
+        // since its a zero page addr, we are only interested in low
+        let addr = ind_addr.wrapping_add(self.regs.x);
+
+        (addr as Word, false)  
     }
 
     // the next 8 bits + y are an address. This address stores the real address
@@ -343,10 +383,12 @@ impl CPU {
     // must be read from the next page. Instead it wraps around and reads from
     // the same page!
     fn am_IZY<T: Memory>(&mut self, bus: &T) -> (Word, bool) {
-        let mut tmp_addr = self.readb_pc(bus) as Word;
-        let addr = self.readw(bus, tmp_addr & 0x00FF);
+        let ind_addr = self.readb_pc(bus);
 
-        (addr, addr & 0xFF00 != tmp_addr & 0xF00)
+        // since its a zero page addr, we are only interested in low
+        let addr = ind_addr.wrapping_add(self.regs.y);
+
+        (addr as Word, false)  
     }
 
     // Operations
