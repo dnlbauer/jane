@@ -20,47 +20,77 @@ impl Disasm {
     pub fn disassemble(mem: &MemoryBus, start: Addr, stop: Addr) -> Result<Self, Error> {
         let mut instructions = Vec::new();
         let mut addresses = Vec::new();
-        let mut mem_iter = ((start as usize) .. (stop as usize)).map({|a| a as Addr});
+        let mut mem_iter = ((start as usize) .. (stop as usize)+1).map({|a| a as Addr});
         while let Some(addr) = mem_iter.next() {
 
             let opcode = mem.readb(addr);
             
-            
             // Decode opcode, default to NOP/IMP to "skip" the byte
             let i = Instruction::decode_op(opcode)
                 .unwrap_or(Instruction::decode_op(0xeau8).unwrap()); 
+            debug!("Disassembling opcode {:#06x}, {:?}", addr, i); 
             
             // debug!("{:?}", i);
             let args = match i.addr_mode {
                 AddrMode::IMM => {
-                    let val = mem.readb(mem_iter.next().unwrap());
-                    format!("#{0:02x} ({0})", val)
+                    match mem_iter.next() {
+                        Some(val) => {
+                            let val = mem.readb(val);
+                            format!("#{0:02x} ({0})", val)
+                        },
+                        None => continue,
+                    }
                 },
                 AddrMode::ZP0 | AddrMode::ZPX | AddrMode::ZPY  => {
-                    let rel_addr = mem.readb(mem_iter.next().unwrap());
-                    format!("{:#04x}", rel_addr)
+                    match mem_iter.next() {
+                        Some(val) => {
+                            let rel_addr = mem.readb(val);
+                            format!("{:#04x}", rel_addr)
+                        }
+                        None => continue,
+                    }
                 },
                 AddrMode::ABS | AddrMode::ABX | AddrMode::ABY => {
-                    let val = mem.readw(mem_iter.next().unwrap());
-                    mem_iter.next().unwrap();
-                    format!("{:#06x}", val)
+                    match mem_iter.next() {
+                        Some(val) => {
+                            let val = mem.readw(val);
+                            mem_iter.next().unwrap();
+                            format!("{:#06x}", val)
+                        },
+                        None => continue,
+                    }
                 },
-                AddrMode::REL => { 
-                    let rel_addr = mem.readb(mem_iter.next().unwrap()) as Word;
-                    let jmp_addr = Disasm::get_rel_addr(rel_addr, addr+2);
-                    format!("#{:02x} => {:#06x}", rel_addr, jmp_addr)
+                AddrMode::REL => {
+                    match mem_iter.next() {
+                        Some(val) => {
+                            let rel_addr = mem.readb(val) as Word;
+                            let jmp_addr = Disasm::get_rel_addr(rel_addr, addr+2);
+                            format!("#{:02x} => {:#06x}", rel_addr, jmp_addr)
+                        },
+                        None => continue,
+                    }
                 },
                 AddrMode::IND => {
-                    let addr = mem.readw(mem_iter.next().unwrap());
-                    mem_iter.next().unwrap();
-                    format!("{:#06x}", addr)
+                    match mem_iter.next() {
+                        Some(val) => {
+                            let addr = mem.readw(val);
+                            mem_iter.next().unwrap();
+                            format!("{:#06x}", addr)
+                        },
+                        None => continue,
+                    }
                 },
                 AddrMode::IZX | AddrMode::IZY => {
-                    let addr = mem.readb(mem_iter.next().unwrap());
-                    format!("{:#06x}", addr)
+                    match mem_iter.next() {
+                        Some(val) => {
+                            let addr = mem.readb(val);
+                            format!("{:#06x}", addr)
+                        },
+                        None => continue,
+                    }
+
                 }
                 AddrMode::IMP => String::from(""),
-                _ => bail!("Disassembly of {} not implemented", i.addr_mode),
             };
 
             let s = format!("{:#06x}: {} {} ({})", addr, i.operation, args, i.addr_mode);
