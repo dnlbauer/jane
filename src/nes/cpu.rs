@@ -235,6 +235,7 @@ impl CPU {
             Operation::INY => self.op_INY(),
             Operation::JMP => self.op_JMP(value),
             Operation::JSR => self.op_JSR(bus, value),
+            Operation::LAX => self.op_LAX(bus, value),
             Operation::LDA => self.op_LDA(bus, value),
             Operation::LDX => self.op_LDX(bus, value),
             Operation::LDY => self.op_LDY(bus, value),
@@ -249,6 +250,7 @@ impl CPU {
             Operation::ROR => self.op_ROR(bus, value),
             Operation::RTI => self.op_RTI(bus),
             Operation::RTS => self.op_RTS(bus),
+            Operation::SAX => self.op_SAX(bus, value),
             Operation::SBC => self.op_SBC(bus, value),
             Operation::SEC => self.op_SEC(),
             Operation::SED => self.op_SED(),
@@ -733,6 +735,13 @@ impl CPU {
         false
     }
 
+    // Unofficial op code! Shortcut for LDA, TAX
+    fn op_LAX<T: Memory>(&mut self, bus: &T, addr: Word) -> bool {
+        self.op_LDA(bus, addr);
+        self.op_TAX();
+        false
+    }
+
     // Read value from addr into A
     fn op_LDA<T: Memory>(&mut self, bus: &T, addr: Word) -> bool {
         let val = self.readb(bus, addr);
@@ -907,6 +916,14 @@ impl CPU {
         self.regs.pc = addr + 1; 
         false
     }
+
+    // Unofficial: Stores bitwise AND of A and X
+    fn op_SAX<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
+        let val = self.regs.a & self.regs.x;
+        self.writeb(bus, addr, val); 
+        false
+    }
+
 
     // SBC - Subtract with Carry
     // A,Z,C,N = A-M-(1-C)

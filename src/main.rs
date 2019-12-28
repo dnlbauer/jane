@@ -83,7 +83,7 @@ fn main() -> Result<(), Error> {
     
 
     // Main loop
-    let mut run = false;
+    let mut run = true;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.update_args() {
             // if cpu.regs.pc == 0xD031 || cpu.regs.pc == 0xD01A  { run = false }
