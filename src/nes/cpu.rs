@@ -896,7 +896,7 @@ impl CPU {
         };
         let shifted = (val << 1) as Byte | self.get_flag(CARRY);
         
-        self.set_flag(CARRY, (val & 0b1000000) == 0);
+        self.set_flag(CARRY, (val & 0b10000000) > 0);
         self.set_flag_nz(shifted);
 
         if *addr_mode == AddrMode::IMP {
