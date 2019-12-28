@@ -5,6 +5,7 @@ use core::fmt::{Debug,Formatter,Result};
 use crate::nes::bus::*;
 use crate::nes::types::*;
 use log::{debug};
+use failure::err_msg;
 
 pub struct Registers {
     pub a: Byte,
@@ -54,6 +55,7 @@ pub struct CPU {
     curr_op: Byte,  // current operation
     cycles: u64,  // number of clock clycles the CPU is ahead of global clock
     cycles_ahead: u8,
+    stopped: bool, 
 }
 
 // Default implementation to read/write from bus
@@ -62,6 +64,11 @@ impl BusDevice for CPU { }
 // A cpu is clockable
 impl Clockable for CPU {
     fn clock<T: Memory>(&mut self, bus: &mut T) {
+        // if processor is halted, we do nothing anymore
+        if self.stopped {
+            panic!("Stopped processor clock'ed!");
+        }
+
         if self.cycles_ahead == 0 {
             let opcode = self.readb_pc(bus);
             self.curr_op = opcode;
@@ -83,6 +90,7 @@ impl CPU {
             curr_op: 0x00,
             cycles: 0,
             cycles_ahead: 0,
+            stopped: false,
         }
     }
 
@@ -237,6 +245,7 @@ impl CPU {
             Operation::ISB => self.op_ISB(bus, value),
             Operation::JMP => self.op_JMP(value),
             Operation::JSR => self.op_JSR(bus, value),
+            Operation::KIL => self.op_KIL(),
             Operation::LAX => self.op_LAX(bus, value),
             Operation::LDA => self.op_LDA(bus, value),
             Operation::LDX => self.op_LDX(bus, value),
@@ -754,6 +763,14 @@ impl CPU {
         self.writeb(bus, STACK_BASE_ADDR + self.regs.sp as Word, (self.regs.pc & 0x00ff) as Byte);
         self.regs.sp -= 1;
         self.jump(addr);
+        false
+    }
+
+    // Unofficial: KIL halts the processor
+    fn op_KIL(&mut self) -> bool {
+        self.stopped = true;
+        info!("Processor received KIL instruction.");
+
         false
     }
 

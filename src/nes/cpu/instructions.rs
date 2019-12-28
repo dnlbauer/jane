@@ -116,7 +116,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x00
     0x00u8 => Instruction { opcode: 0x00, addr_mode: AddrMode::IMP, operation: Operation::BRK, cycles: [7, 0] }, 
     0x01u8 => Instruction { opcode: 0x01, addr_mode: AddrMode::IZX, operation: Operation::ORA, cycles: [6, 0] }, 
-    0x02u8 => Instruction { opcode: 0x02, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] },
+    0x02u8 => Instruction { opcode: 0x02, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] },
     0x03u8 => Instruction { opcode: 0x03, addr_mode: AddrMode::IZX, operation: Operation::SLO, cycles: [8, 0] }, 
     0x04u8 => Instruction { opcode: 0x04, addr_mode: AddrMode::ZP0, operation: Operation::NOP, cycles: [3, 0] },
     0x05u8 => Instruction { opcode: 0x05, addr_mode: AddrMode::ZP0, operation: Operation::ORA, cycles: [3, 0] }, 
@@ -133,7 +133,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x10
     0x10u8 => Instruction { opcode: 0x10, addr_mode: AddrMode::REL, operation: Operation::BPL, cycles: [2, 0] }, 
     0x11u8 => Instruction { opcode: 0x11, addr_mode: AddrMode::IZY, operation: Operation::ORA, cycles: [5, 0] }, 
-    0x12u8 => Instruction { opcode: 0x12, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] },
+    0x12u8 => Instruction { opcode: 0x12, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] },
     0x13u8 => Instruction { opcode: 0x13, addr_mode: AddrMode::IZY, operation: Operation::SLO, cycles: [8, 0] }, 
     0x14u8 => Instruction { opcode: 0x14, addr_mode: AddrMode::ZPX, operation: Operation::NOP, cycles: [4, 0] },
     0x15u8 => Instruction { opcode: 0x15, addr_mode: AddrMode::ZPX, operation: Operation::ORA, cycles: [4, 0] }, 
@@ -150,7 +150,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x20
     0x20u8 => Instruction { opcode: 0x20, addr_mode: AddrMode::ABS, operation: Operation::JSR, cycles: [6, 0] }, 
     0x21u8 => Instruction { opcode: 0x21, addr_mode: AddrMode::IZX, operation: Operation::AND, cycles: [6, 0] }, 
-    0x22u8 => Instruction { opcode: 0x22, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] },
+    0x22u8 => Instruction { opcode: 0x22, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] },
     0x23u8 => Instruction { opcode: 0x23, addr_mode: AddrMode::IZX, operation: Operation::RLA, cycles: [8, 0] }, 
     0x24u8 => Instruction { opcode: 0x24, addr_mode: AddrMode::ZP0, operation: Operation::BIT, cycles: [3, 0] }, 
     0x25u8 => Instruction { opcode: 0x25, addr_mode: AddrMode::ZP0, operation: Operation::AND, cycles: [3, 0] }, 
@@ -167,7 +167,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x30
     0x30u8 => Instruction { opcode: 0x30, addr_mode: AddrMode::REL, operation: Operation::BMI, cycles: [2, 0] }, 
     0x31u8 => Instruction { opcode: 0x31, addr_mode: AddrMode::IZY, operation: Operation::AND, cycles: [5, 0] }, 
-    0x32u8 => Instruction { opcode: 0x32, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] },
+    0x32u8 => Instruction { opcode: 0x32, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] },
     0x33u8 => Instruction { opcode: 0x33, addr_mode: AddrMode::IZY, operation: Operation::RLA, cycles: [8, 0] },
     0x34u8 => Instruction { opcode: 0x34, addr_mode: AddrMode::ZPX, operation: Operation::NOP, cycles: [4, 0] },
     0x35u8 => Instruction { opcode: 0x35, addr_mode: AddrMode::ZPX, operation: Operation::AND, cycles: [4, 0] }, 
@@ -184,7 +184,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x40
     0x40u8 => Instruction { opcode: 0x40, addr_mode: AddrMode::IMP, operation: Operation::RTI, cycles: [6, 0] }, 
     0x41u8 => Instruction { opcode: 0x41, addr_mode: AddrMode::IZX, operation: Operation::EOR, cycles: [6, 0] },  
-    0x42u8 => Instruction { opcode: 0x42, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] },
+    0x42u8 => Instruction { opcode: 0x42, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] },
     0x43u8 => Instruction { opcode: 0x43, addr_mode: AddrMode::IZX, operation: Operation::SRE, cycles: [8, 0] }, 
     0x44u8 => Instruction { opcode: 0x44, addr_mode: AddrMode::ZP0, operation: Operation::NOP, cycles: [3, 0] },
     0x45u8 => Instruction { opcode: 0x45, addr_mode: AddrMode::ZP0, operation: Operation::EOR, cycles: [3, 0] }, 
@@ -201,7 +201,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x50
     0x50u8 => Instruction { opcode: 0x50, addr_mode: AddrMode::REL, operation: Operation::BVC, cycles: [2, 0] }, 
     0x51u8 => Instruction { opcode: 0x51, addr_mode: AddrMode::IZY, operation: Operation::EOR, cycles: [5, 0] }, 
-    0x52u8 => Instruction { opcode: 0x52, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] }, 
+    0x52u8 => Instruction { opcode: 0x52, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] }, 
     0x53u8 => Instruction { opcode: 0x53, addr_mode: AddrMode::IZY, operation: Operation::SRE, cycles: [8, 0] }, 
     0x54u8 => Instruction { opcode: 0x54, addr_mode: AddrMode::ZPX, operation: Operation::NOP, cycles: [4, 0] },
     0x55u8 => Instruction { opcode: 0x55, addr_mode: AddrMode::ZPX, operation: Operation::EOR, cycles: [4, 0] }, 
@@ -218,7 +218,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x60
     0x60u8 => Instruction { opcode: 0x60, addr_mode: AddrMode::IMP, operation: Operation::RTS, cycles: [6, 0] }, 
     0x61u8 => Instruction { opcode: 0x61, addr_mode: AddrMode::IZX, operation: Operation::ADC, cycles: [6, 0] }, 
-    0x62u8 => Instruction { opcode: 0x62, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] },
+    0x62u8 => Instruction { opcode: 0x62, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] },
     0x63u8 => Instruction { opcode: 0x63, addr_mode: AddrMode::IZX, operation: Operation::RRA, cycles: [8, 0] }, 
     0x64u8 => Instruction { opcode: 0x64, addr_mode: AddrMode::ZP0, operation: Operation::NOP, cycles: [3, 0] },
     0x65u8 => Instruction { opcode: 0x65, addr_mode: AddrMode::ZP0, operation: Operation::ADC, cycles: [3, 0] }, 
@@ -235,7 +235,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x70
     0x70u8 => Instruction { opcode: 0x70, addr_mode: AddrMode::REL, operation: Operation::BVS, cycles: [2, 0] }, 
     0x71u8 => Instruction { opcode: 0x71, addr_mode: AddrMode::IZY, operation: Operation::ADC, cycles: [5, 0] },
-    0x72u8 => Instruction { opcode: 0x72, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] }, 
+    0x72u8 => Instruction { opcode: 0x72, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] }, 
     0x73u8 => Instruction { opcode: 0x73, addr_mode: AddrMode::IZY, operation: Operation::RRA, cycles: [8, 0] }, 
     0x74u8 => Instruction { opcode: 0x74, addr_mode: AddrMode::ZPX, operation: Operation::NOP, cycles: [4, 0] },
     0x75u8 => Instruction { opcode: 0x75, addr_mode: AddrMode::ZPX, operation: Operation::ADC, cycles: [4, 0] }, 
@@ -269,7 +269,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0x90
     0x90u8 => Instruction { opcode: 0x90, addr_mode: AddrMode::REL, operation: Operation::BCC, cycles: [2, 0] }, 
     0x91u8 => Instruction { opcode: 0x91, addr_mode: AddrMode::IZY, operation: Operation::STA, cycles: [6, 0] },
-    0x92u8 => Instruction { opcode: 0x92, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] },
+    0x92u8 => Instruction { opcode: 0x92, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] },
     0x93u8 => Instruction { opcode: 0x93, addr_mode: AddrMode::IZY, operation: Operation::AHX, cycles: [6, 0] }, 
     0x94u8 => Instruction { opcode: 0x94, addr_mode: AddrMode::ZPX, operation: Operation::STY, cycles: [4, 0] }, 
     0x95u8 => Instruction { opcode: 0x95, addr_mode: AddrMode::ZPX, operation: Operation::STA, cycles: [4, 0] }, 
@@ -303,7 +303,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0xb0
     0xb0u8 => Instruction { opcode: 0xb0, addr_mode: AddrMode::REL, operation: Operation::BCS, cycles: [2, 0] }, 
     0xb1u8 => Instruction { opcode: 0xb1, addr_mode: AddrMode::IZY, operation: Operation::LDA, cycles: [5, 0] }, 
-    0xb2u8 => Instruction { opcode: 0xb2, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] }, 
+    0xb2u8 => Instruction { opcode: 0xb2, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] }, 
     0xb3u8 => Instruction { opcode: 0xb3, addr_mode: AddrMode::IZY, operation: Operation::LAX, cycles: [5, 0] },
     0xb4u8 => Instruction { opcode: 0xb4, addr_mode: AddrMode::ZPX, operation: Operation::LDY, cycles: [4, 0] }, 
     0xb5u8 => Instruction { opcode: 0xb5, addr_mode: AddrMode::ZPX, operation: Operation::LDA, cycles: [4, 0] }, 
@@ -329,7 +329,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     0xc8u8 => Instruction { opcode: 0xc8, addr_mode: AddrMode::IMP, operation: Operation::INY, cycles: [2, 0] }, 
     0xc9u8 => Instruction { opcode: 0xc9, addr_mode: AddrMode::IMM, operation: Operation::CMP, cycles: [2, 0] }, 
     0xcau8 => Instruction { opcode: 0xca, addr_mode: AddrMode::IMP, operation: Operation::DEX, cycles: [2, 0] }, 
-    0xcbu8 => Instruction { opcode: 0xcb, addr_mode: AddrMode::IMM, operation: Operation::AXS, cycles: [0, 0] }, 
+    0xcbu8 => Instruction { opcode: 0xcb, addr_mode: AddrMode::IMM, operation: Operation::AXS, cycles: [1, 0] }, 
     0xccu8 => Instruction { opcode: 0xcc, addr_mode: AddrMode::ABS, operation: Operation::CPY, cycles: [4, 0] }, 
     0xcdu8 => Instruction { opcode: 0xcd, addr_mode: AddrMode::ABS, operation: Operation::CMP, cycles: [4, 0] }, 
     0xceu8 => Instruction { opcode: 0xce, addr_mode: AddrMode::ABS, operation: Operation::DEC, cycles: [6, 0] }, 
@@ -337,7 +337,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0xd0
     0xd0u8 => Instruction { opcode: 0xd0, addr_mode: AddrMode::REL, operation: Operation::BNE, cycles: [2, 0] }, 
     0xd1u8 => Instruction { opcode: 0xd1, addr_mode: AddrMode::IZY, operation: Operation::CMP, cycles: [5, 0] }, 
-    0xd2u8 => Instruction { opcode: 0xd2, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] }, 
+    0xd2u8 => Instruction { opcode: 0xd2, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] }, 
     0xd3u8 => Instruction { opcode: 0xd3, addr_mode: AddrMode::IZY, operation: Operation::DCP, cycles: [7, 0] }, 
     0xd4u8 => Instruction { opcode: 0xd4, addr_mode: AddrMode::ZPX, operation: Operation::NOP, cycles: [4, 0] },
     0xd5u8 => Instruction { opcode: 0xd5, addr_mode: AddrMode::ZPX, operation: Operation::CMP, cycles: [4, 0] }, 
@@ -371,7 +371,7 @@ static INSTRUCTION_SET: Map<u8, Instruction> = phf_map! {
     // 0xf0
     0xf0u8 => Instruction { opcode: 0xf0, addr_mode: AddrMode::REL, operation: Operation::BEQ, cycles: [2, 0] }, 
     0xf1u8 => Instruction { opcode: 0xf1, addr_mode: AddrMode::IZY, operation: Operation::SBC, cycles: [5, 0] }, 
-    0xf2u8 => Instruction { opcode: 0xf2, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [0, 0] }, 
+    0xf2u8 => Instruction { opcode: 0xf2, addr_mode: AddrMode::IMP, operation: Operation::KIL, cycles: [1, 0] }, 
     0xf3u8 => Instruction { opcode: 0xf3, addr_mode: AddrMode::IZY, operation: Operation::ISB, cycles: [7, 0] }, 
     0xf4u8 => Instruction { opcode: 0xf4, addr_mode: AddrMode::ZPX, operation: Operation::NOP, cycles: [4, 0] },
     0xf5u8 => Instruction { opcode: 0xf5, addr_mode: AddrMode::ZPX, operation: Operation::SBC, cycles: [4, 0] }, 
@@ -438,7 +438,7 @@ mod tests {
             if inst.operation == Operation::KIL {
                 assert_eq!(inst.addr_mode, AddrMode::IMP,
                     "KIL addr mode not IMP for {:#04x}", opcode);
-                assert_eq!(inst.cycles, [0, 0],
+                assert_eq!(inst.cycles, [1, 0],
                     "KIL cycles not 0 for {:#04x}", opcode);
             }
         }
