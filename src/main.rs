@@ -86,7 +86,7 @@ fn main() -> Result<(), Error> {
     let mut run = true;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.update_args() {
-            // if cpu.regs.pc == 0xEE29  || cpu.regs.pc == 0xEE0E { run = false }
+            if cpu.regs.pc == 0xC6A2 { run = false }
             if run {
                 cpu.clock(&mut bus);
             }

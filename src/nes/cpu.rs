@@ -88,7 +88,7 @@ impl CPU {
         CPU {
             regs: Registers::new(),
             curr_op: 0x00,
-            cycles: 0,
+            cycles: 7,
             cycles_ahead: 0,
             stopped: false,
         }
