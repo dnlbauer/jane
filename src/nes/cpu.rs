@@ -218,7 +218,7 @@ impl CPU {
             Operation::AND => self.op_AND(bus, value),
             Operation::ASL => self.op_ASL(bus, value),
             Operation::BCC => self.op_BCC(bus, value),
-            Operation::BCS => self.op_BCS(bus, value),
+            Operation::BCS => self.op_BCS(value),
             Operation::BEQ => self.op_BEQ(bus, value),
             Operation::BIT => self.op_BIT(bus, value),
             Operation::BMI => self.op_BMI(bus, value),
@@ -258,7 +258,9 @@ impl CPU {
             Operation::PLA => self.op_PLA(bus),
             Operation::ROL => self.op_ROL(bus, value),
             Operation::PLP => self.op_PLP(bus),
+            Operation::RLA => self.op_RLA(bus, value),
             Operation::ROR => self.op_ROR(bus, value),
+            Operation::RRA => self.op_RRA(bus, value),
             Operation::RTI => self.op_RTI(bus),
             Operation::RTS => self.op_RTS(bus),
             Operation::SAX => self.op_SAX(bus, value),
@@ -267,6 +269,7 @@ impl CPU {
             Operation::SED => self.op_SED(),
             Operation::SEI => self.op_SEI(),
             Operation::SLO => self.op_SLO(bus, value),
+            Operation::SRE => self.op_SRE(bus, value),
             Operation::STA => self.op_STA(bus, value),
             Operation::STX => self.op_STX(bus, value),
             Operation::STY => self.op_STY(bus, value),
@@ -471,7 +474,7 @@ impl CPU {
             self.readb(bus, addr)
         };
         let shifted = (val << 1) as Byte;
-        self.set_flag(CARRY, (val & 0b1000000) == 0);
+        self.set_flag(CARRY, (val & 0b10000000) > 0);
 
         if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
@@ -497,7 +500,7 @@ impl CPU {
         // BCC - Branch if Carry Set
     // If the carry flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
-    fn op_BCS<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
+    fn op_BCS(&mut self, addr: Addr) -> bool {
         if self.get_flag(CARRY) == 1 {
             self.jump(addr);
         }
@@ -840,7 +843,7 @@ impl CPU {
     // An inclusive OR is performed, bit by bit, on the accumulator contents
     // using the contents of a byte of memory.
     fn op_ORA<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
-        self.regs.a |= self.readb(bus, addr);
+        self.regs.a = self.regs.a | self.readb(bus, addr);
         self.set_flag_nz(self.regs.a);
         true
     }
@@ -901,6 +904,21 @@ impl CPU {
         } else {
             self.writeb(bus, addr, shifted);
         }
+        false
+    }
+
+    // Unofficial: ROL and then AND
+    fn op_RLA<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
+        self.op_ROL(bus, addr);
+        self.op_AND(bus, addr);
+
+        false
+    }
+
+    // Unofficial: Performs ROR + ADC
+    fn op_RRA<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
+        self.op_ROR(bus, addr);
+        self.op_ADC(bus, addr);
         false
     }
 
@@ -1013,10 +1031,17 @@ impl CPU {
         false
     }
 
-    // Unofficial opcode: ASL then ORA
+    // Unofficial: ASL + ORA
     fn op_SLO<T: Memory>(&mut self, bus: &mut T, addr: Word) -> bool {
         self.op_ASL(bus, addr);
         self.op_ORA(bus, addr);
+        false
+    }
+
+    // Unofficial: LSR + EOR
+    fn op_SRE<T: Memory>(&mut self, bus: &mut T, addr: Word) -> bool {
+        self.op_LSR(bus, addr);
+        self.op_EOR(bus, addr);
         false
     }
 
