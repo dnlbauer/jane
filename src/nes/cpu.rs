@@ -226,6 +226,7 @@ impl CPU {
             Operation::CMP => self.op_CMP(bus, value),
             Operation::CPX => self.op_CPX(bus, value),
             Operation::CPY => self.op_CPY(bus, value),
+            Operation::DCP => self.op_DCP(bus, value),
             Operation::DEC => self.op_DEC(bus, value),
             Operation::DEX => self.op_DEX(),
             Operation::DEY => self.op_DEY(),
@@ -638,6 +639,13 @@ impl CPU {
         self.set_flag(CARRY, self.regs.y >= val);
         self.set_flag_nz(tmp as Byte);
         true
+    }
+
+    // Unofficial: DEC value, then CMP 
+    fn op_DCP<T: Memory>(&mut self, bus: &mut T, addr: Word) -> bool {
+        self.op_DEC(bus, addr);
+        self.op_CMP(bus, addr);
+        false
     }
 
     // DEC - Decrement Memory
