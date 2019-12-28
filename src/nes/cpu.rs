@@ -39,7 +39,7 @@ impl Debug for Registers {
 
 pub const STACK_BASE_ADDR: Addr = 0x0100;
 pub const LO: Addr  = 0x00FF;
-pub const HI: Addr  = 0xFFFF;
+pub const HI: Addr  = 0xFF00;
 
 pub const CARRY: Byte = 1 << 0;    // 0000 0001 0x01
 pub const ZERO: Byte = 1 << 1;     // 0000 0010 0x02
@@ -73,10 +73,11 @@ impl Clockable for CPU {
             let opcode = self.readb_pc(bus);
             self.curr_op = opcode;
             let instruction = Instruction::decode_op(opcode);
+            
             info!("{:#06X}  {:02X} {}          A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
                 self.regs.pc-1, opcode, instruction.operation,
                 self.regs.a, self.regs.x, self.regs.y, self.regs.flags, self.regs.sp, self.cycles);
-            self.cycles_ahead = self.run_instruction(bus, instruction);
+            self.cycles_ahead += self.run_instruction(bus, instruction);
         }
         self.cycles_ahead -= 1;
         self.cycles += 1
@@ -362,7 +363,8 @@ impl CPU {
         } else {
             base_addr + rel_addr - 256
         };
-        (addr, false)
+
+        (addr, addr & HI != base_addr & HI)
     }
 
     // the next 16 bits are an address. This address stores the real address
@@ -409,7 +411,7 @@ impl CPU {
         let addr = (hi as Word) << 8 | lo as Word;
         let addr = addr.wrapping_add(self.regs.y as Word);
 
-        if addr & HI != (hi as Word) << 8 {
+        if addr & HI != (hi as Word) << 8 & HI {
             (addr, true)
         } else {
             (addr, false)
@@ -493,16 +495,20 @@ impl CPU {
     fn op_BCC<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
         if self.get_flag(CARRY) == 0 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
 
-        // BCC - Branch if Carry Set
+    // BCC - Branch if Carry Set
     // If the carry flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn op_BCS(&mut self, addr: Addr) -> bool {
         if self.get_flag(CARRY) == 1 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
@@ -513,6 +519,8 @@ impl CPU {
     fn op_BEQ<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
         if self.get_flag(ZERO) == 1 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
@@ -535,6 +543,8 @@ impl CPU {
     fn op_BMI<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
         if self.get_flag(NEGATIVE) == 1 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
@@ -545,6 +555,8 @@ impl CPU {
     fn op_BNE(&mut self, addr: Addr) -> bool {
         if self.get_flag(ZERO) == 0 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
@@ -555,6 +567,8 @@ impl CPU {
     fn op_BPL<T: Memory>(&mut self, bus: &T, addr: Addr) -> bool {
         if self.get_flag(NEGATIVE) == 0 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
@@ -588,6 +602,8 @@ impl CPU {
     fn op_BVC(&mut self, addr: Addr) -> bool {
         if self.get_flag(OVERFLOW) == 0 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
@@ -598,6 +614,8 @@ impl CPU {
     fn op_BVS(&mut self, addr: Addr) -> bool {
         if self.get_flag(OVERFLOW) == 1 {
             self.jump(addr);
+            self.cycles_ahead += 1;
+            return true
         }
         false
     }
@@ -835,7 +853,10 @@ impl CPU {
 
     // does nothing
     fn op_NOP(&mut self) -> bool {
-        false
+        match Instruction::decode_op(self.curr_op).addr_mode {
+           AddrMode::ABX => true,
+           _ => false,
+        }
     }
 
     // ORA - Logical Inclusive OR
