@@ -26,8 +26,7 @@ impl Disasm {
             let opcode = mem.readb(addr);
             
             // Decode opcode, default to NOP/IMP to "skip" the byte
-            let i = Instruction::decode_op(opcode)
-                .unwrap_or(Instruction::decode_op(0xeau8).unwrap()); 
+            let i = Instruction::decode_op(opcode); 
             debug!("Disassembling opcode {:#06x}, {:?}", addr, i); 
             
             // debug!("{:?}", i);

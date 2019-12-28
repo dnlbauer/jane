@@ -65,7 +65,7 @@ impl Clockable for CPU {
         if self.cycles_ahead == 0 {
             let opcode = self.readb_pc(bus);
             self.curr_op = opcode;
-            let instruction = Instruction::decode_op(opcode).unwrap();  // TODO error handling
+            let instruction = Instruction::decode_op(opcode);
             info!("{:#06X}  {:02X} {}          A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
                 self.regs.pc-1, opcode, instruction.operation,
                 self.regs.a, self.regs.x, self.regs.y, self.regs.flags, self.regs.sp, self.cycles);
@@ -234,6 +234,7 @@ impl CPU {
             Operation::INC => self.op_INC(bus, value),
             Operation::INX => self.op_INX(),
             Operation::INY => self.op_INY(),
+            Operation::ISB => self.op_ISB(bus, value),
             Operation::JMP => self.op_JMP(value),
             Operation::JSR => self.op_JSR(bus, value),
             Operation::LAX => self.op_LAX(bus, value),
@@ -256,6 +257,7 @@ impl CPU {
             Operation::SEC => self.op_SEC(),
             Operation::SED => self.op_SED(),
             Operation::SEI => self.op_SEI(),
+            Operation::SLO => self.op_SLO(bus, value),
             Operation::STA => self.op_STA(bus, value),
             Operation::STX => self.op_STX(bus, value),
             Operation::STY => self.op_STY(bus, value),
@@ -265,6 +267,11 @@ impl CPU {
             Operation::TXA => self.op_TXA(),
             Operation::TXS => self.op_TXS(),
             Operation::TYA => self.op_TYA(),
+            _ => { 
+                // OP not implemented. do nothing
+                warn!("Operation not implemented: {:?}", i.operation);
+                false
+            }
         };
 
         if page_cross && extra_cycle_on_page_cross {
@@ -448,7 +455,7 @@ impl CPU {
     // Negative bit is set
     fn op_ASL<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
         // LSR works on memory or A. We can differenciate by the addr mode
-        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let addr_mode = &Instruction::decode_op(self.curr_op).addr_mode;
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a
         } else {
@@ -726,6 +733,13 @@ impl CPU {
         false
     }
 
+    // Unofficial opcode: INC, then SBC
+    fn op_ISB<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
+        self.op_INC(bus, addr);
+        self.op_SBC(bus, addr);
+        false
+    }
+
     // Jump to address (set pc)
     fn op_JMP(&mut self, addr: Addr) -> bool {
         self.jump(addr);
@@ -780,7 +794,7 @@ impl CPU {
     // that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
     fn op_LSR<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
         // LSR works on memory or A. We can differenciate by the addr mode
-        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let addr_mode = &Instruction::decode_op(self.curr_op).addr_mode;
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a as Word
         } else {
@@ -854,7 +868,7 @@ impl CPU {
     // filled with the current value of the carry flag whilst the old bit 7
     // becomes the new carry flag value.
     fn op_ROL<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
-        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let addr_mode = &Instruction::decode_op(self.curr_op).addr_mode;
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a as Word
         } else {
@@ -878,7 +892,7 @@ impl CPU {
     // filled with the current value of the carry flag whilst the old bit 0
     // becomes the new carry flag value.
     fn op_ROR<T: Memory>(&mut self, bus: &mut T, addr: Addr) -> bool {
-        let addr_mode = &Instruction::decode_op(self.curr_op).unwrap().addr_mode;
+        let addr_mode = &Instruction::decode_op(self.curr_op).addr_mode;
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a as Word
         } else {
@@ -979,6 +993,13 @@ impl CPU {
     // set irq flag
     fn op_SEI(&mut self) -> bool {
         self.set_flag(IRQ, true);
+        false
+    }
+
+    // Unofficial opcode: ASL then ORA
+    fn op_SLO<T: Memory>(&mut self, bus: &mut T, addr: Word) -> bool {
+        self.op_ASL(bus, addr);
+        self.op_ORA(bus, addr);
         false
     }
 
