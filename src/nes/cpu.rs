@@ -799,7 +799,11 @@ impl CPU {
     fn op_LAX<T: Memory>(&mut self, bus: &T, addr: Word) -> bool {
         self.op_LDA(bus, addr);
         self.op_TAX();
-        false
+
+        match Instruction::decode_op(self.curr_op).addr_mode {
+            AddrMode::IZY | AddrMode::ABY => true,
+            _ => false,
+        }
     }
 
     // Read value from addr into A
