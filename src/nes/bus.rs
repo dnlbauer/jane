@@ -106,10 +106,10 @@ impl Memory for Bus {
             // Ram is 3x mirrored after 0x07ff
             return self.ram[(addr & RAM_PHYS_RANGE[1]) as usize]
         }
-        if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
-            // PPU memory is mirrored after 0x2007 to 0x3fff 
-            return self.ram[(addr & PPU_PHYS_RANGE[1]) as usize]
-        }
+        // if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
+        //     // PPU memory is mirrored after 0x2007 to 0x3fff 
+        //     return self.ram[(addr & PPU_PHYS_RANGE[1]) as usize]
+        // }
         0x0000  // generic response
     }
 
@@ -123,10 +123,10 @@ impl Memory for Bus {
             // Ram is 3x mirrored after 07ff
             self.ram[(addr & RAM_PHYS_RANGE[1]) as usize] = data
         }
-        if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
-            // PPU memory is mirrored after 0x2007 to 0x3fff
-            self.ram[(addr & PPU_PHYS_RANGE[1]) as usize] = data
-        }
+        // if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
+        //     // PPU memory is mirrored after 0x2007 to 0x3fff
+        //     self.ram[(addr & PPU_PHYS_RANGE[1]) as usize] = data
+        // }
     }
 }
 

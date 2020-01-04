@@ -44,7 +44,7 @@ fn main() -> Result<(), Error> {
     let cartridge = Cartridge::new(cartridge)?;
     nes.insert_cartrige(cartridge);
     nes.cpu.find_pc_addr(&nes.bus);
-    nes.cpu.regs.pc = 0xC000;
+    // nes.cpu.regs.pc = 0xC000;
 
     // disassemble instructions
     let disasm = Disasm::disassemble(&nes.bus, 0xC000, 0xFFFF).unwrap();
