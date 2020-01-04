@@ -1,5 +1,5 @@
 use crate::nes::mappers::*;
-use crate::nes::bus::Memory;
+use crate::nes::Memory;
 use failure::Error;
 use std::io::prelude::*;
 use std::fs::File;

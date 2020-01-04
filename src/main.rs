@@ -9,13 +9,10 @@ extern crate rand;
 
 mod nes;
 
+use crate::nes::*;
 use std::path::Path;
 use piston_window::*;
-use nes::NES;
-use nes::types::*;
 use nes::cpu::*;
-use nes::bus::*;
-use nes::cartridge::*;
 use nes::disasm::*;
 use opengl_graphics::OpenGL;
 use log::Level;
@@ -42,12 +39,12 @@ fn main() -> Result<(), Error> {
     let mut nes = NES::new();
     let cartridge = Path::new("test_roms/nestest.nes");
     let cartridge = Cartridge::new(cartridge)?;
-    nes.insert_cartrige(cartridge);
-    nes.cpu.find_pc_addr(&nes.bus);
+    nes.insert_cartridge(cartridge);
+    nes.start();
     // nes.cpu.regs.pc = 0xC000;
 
     // disassemble instructions
-    let disasm = Disasm::disassemble(&nes.bus, 0xC000, 0xFFFF).unwrap();
+    let disasm = Disasm::disassemble(&nes.memory, 0xC000, 0xFFFF).unwrap();
 
     // Prepare window and drawing resources
     let mut window: PistonWindow = WindowSettings::new("xXx NESemu xXx", [256*3, 240*2+50])
@@ -92,7 +89,7 @@ fn main() -> Result<(), Error> {
                 let transform = c.transform.trans(256.0, 50.0).scale(2.0, 2.0);
                 image(&texture, transform, g);
             });
-            render_debug(&mut window, &event, &mut glyph_brush, &nes.cpu, &nes.bus, &disasm);
+            render_debug(&mut window, &event, &mut glyph_brush, &nes.cpu, &nes, &disasm);
         }
         if let Some(Button::Keyboard(key)) = event.press_args() {
             match key {
@@ -103,7 +100,7 @@ fn main() -> Result<(), Error> {
                         nes.clock();
                     }
                 }
-                Key::R => nes.cpu.reset(&mut nes.bus),
+                Key::R => nes.reset(),
                 Key::Space => run = !run,
                 Key::Up => {
                     event_settings.ups = (event_settings.ups as f64 * 1.1) as u64 + 1;
@@ -124,7 +121,7 @@ fn main() -> Result<(), Error> {
 
 fn render_debug(window: &mut PistonWindow, event: &Event,
     glyphs: &mut GlyphBrush<Resources, Factory>,
-    cpu: &CPU, _bus: &Bus, disasm: &Disasm) {
+    cpu: &CPU, _nes: &NES, disasm: &Disasm) {
 
     
     window.draw_2d(event, |_c, _g, _d| {
@@ -132,7 +129,7 @@ fn render_debug(window: &mut PistonWindow, event: &Event,
         render_cpu(glyphs, cpu, debug_offset);
         render_disasm(glyphs, disasm, cpu.regs.pc,
             [debug_offset[0], debug_offset[1] + (7.0 * (FT_LINE_DISTANCE+FT_SIZE_PX))]);
-        // render_memory(glyphs, bus,
+        // render_memory(glyphs, nes,
         //     [debug_offset[0] + 400.0, debug_offset[1]]);
     });
     glyphs.use_queue().draw(&mut window.encoder, &window.output_color).unwrap();
@@ -289,13 +286,13 @@ fn render_disasm(glyphs: &mut GlyphBrush<Resources, Factory>,
     }
 }
 
-fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, bus: &Bus, offset: [f32; 2]) {
+fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, nes: &NES, offset: [f32; 2]) {
     let mut position_y = (offset[0], offset[1]);
     for page in (0x0000..0x00FF).step_by(16) {
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;
         let mut line = format!("{:#06x}:", page);
         (0u16..16u16).map(|offset| offset + page)
-            .map(|addr| bus.readb(addr))
+            .map(|addr| nes.memory.readb(addr))
             .map(|val| format!(" {:02x}", val))
             .for_each(|s| line.push_str(&s));
         glyphs.queue(Section {
@@ -312,7 +309,7 @@ fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, bus: &Bus, offset:
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;
         let mut line = format!("{:#06x}:", page);
         (0u16..16u16).map(|offset| offset + page)
-            .map(|addr| bus.readb(addr))
+            .map(|addr| nes.memory.readb(addr))
             .map(|val| format!(" {:02x}", val))
             .for_each(|s| line.push_str(&s));
         glyphs.queue(Section {

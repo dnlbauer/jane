@@ -1,5 +1,4 @@
-use crate::nes::bus::Memory;
-use crate::nes::bus::Clockable;
+use crate::nes::memory::Memory;
 use image::{ImageBuffer, Rgba};
 use rand::Rng;
 
@@ -18,10 +17,8 @@ impl PPU {
             canvas_main: ImageBuffer::new(256, 240),
         }
     }
-}
 
-impl Clockable for PPU {
-    fn clock<T: Memory>(&mut self, _bus: &mut T) {
+    pub fn clock<T: Memory>(&mut self, _mem: &mut T) {
         // random noise
         let mut rng = rand::thread_rng();
         let x = rng.gen_range(0, 256);
@@ -37,6 +34,3 @@ impl Clockable for PPU {
         self.canvas_main.put_pixel(x as u32, y as u32, px);
     } 
 }
-
-
-

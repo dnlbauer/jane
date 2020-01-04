@@ -1,8 +1,8 @@
+use crate::nes::*;
 use crate::nes::cpu::instructions::*;
+
 use failure::Error;
 use std::fmt;
-use crate::nes::bus::*;
-use crate::nes::types::*;
 use std::fmt::Debug;
 
 // Disassemble code around the pc of the cpu
@@ -13,11 +13,11 @@ pub struct Disasm {
     pub addresses: Vec<Addr>
 }
 
-impl BusDevice for Disasm {}
+impl MemoryReader for Disasm {}
 
 impl Disasm {
     // Disassemble given code region
-    pub fn disassemble(mem: &Bus, start: Addr, stop: Addr) -> Result<Self, Error> {
+    pub fn disassemble<T: Memory>(mem: &T, start: Addr, stop: Addr) -> Result<Self, Error> {
         let mut instructions = Vec::new();
         let mut addresses = Vec::new();
         let mut mem_iter = ((start as usize) .. (stop as usize)+1).map({|a| a as Addr});
