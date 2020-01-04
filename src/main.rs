@@ -1,14 +1,17 @@
 #[macro_use] extern crate log;
 #[macro_use] extern crate failure;
 #[macro_use] extern crate lazy_static;
+extern crate image;
 extern crate simple_logger;
 extern crate phf;
 extern crate piston_window;
+extern crate rand;
 
 mod nes;
 
 use std::path::Path;
 use piston_window::*;
+use nes::NES;
 use nes::types::*;
 use nes::cpu::*;
 use nes::bus::*;
@@ -21,7 +24,7 @@ use failure::Error;
 use gfx_glyph::{Section, GlyphBrushBuilder,GlyphBrush, Scale};
 use gfx_device_gl::{Resources,Factory};
 
-const BG_COLOR: [f32; 4] = [0.0, 0.0, 252.0/256.0, 1.0];
+const BG_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 
 // font options
 const FT_SIZE_PX: f32 = 11.0;
@@ -35,75 +38,72 @@ lazy_static! {
 
 fn main() -> Result<(), Error> {
     simple_logger::init_with_level(Level::Info).unwrap();
-   
-    let mut bus = MemoryBus::new();
+  
+    let mut nes = NES::new();
     let cartridge = Path::new("test_roms/nestest.nes");
     let cartridge = Cartridge::new(cartridge)?;
-    bus.insert_cartrige(cartridge);
-
-    // Load little test program into ram
-    // let test_prog: [Byte; 28] = [0xA2, 0x0A, 0x8E, 0x00, 0x00, 0xA2, 0x03, 0x8E, 0x01, 0x00, 0xAC, 0x00, 0x00, 0xA9,
-    // 0x00, 0x18, 0x6D, 0x01, 0x00, 0x88, 0xD0, 0xFA, 0x8D, 0x02, 0x00, 0xEA, 0xEA, 0xEA];
-    // let offset: Addr = 0x8000;
-    // // craft test cartrige
-    // let mut cart = Cartridge::dummy();
-    // bus.insert_cartrige(cart);
-    // for i in 0..test_prog.len() {
-    //     let addr = (i as Addr) + offset;
-    //     bus.writeb(addr, test_prog[i])
-    // }
-    // // hint program location to processor
-    // bus.writew(0xfffc, offset);
+    nes.insert_cartrige(cartridge);
+    nes.cpu.find_pc_addr(&nes.bus);
+    nes.cpu.regs.pc = 0xC000;
 
     // disassemble instructions
-    let disasm = Disasm::disassemble(&bus, 0xC000, 0xFFFF).unwrap();
-    // println!("{:?}", disasm.instructions);
-    // return;
-    // let disasm = Disasm::disassemble(&[], 0x000).unwrap();
-
-    // Create and reset CPU 
-    let mut cpu: CPU = CPU::new();
-    cpu.find_pc_addr(&bus);
-    cpu.regs.pc = 0xC000;
-    // return Ok(());
-    // cpu.reset(&bus);
+    let disasm = Disasm::disassemble(&nes.bus, 0xC000, 0xFFFF).unwrap();
 
     // Prepare window and drawing resources
-    let mut window: PistonWindow = WindowSettings::new("NESemu", [256*3, 240*2])
+    let mut window: PistonWindow = WindowSettings::new("xXx NESemu xXx", [256*3, 240*2+50])
         .exit_on_esc(true).graphics_api(OpenGL::V3_2).build().unwrap();
     let mut event_settings = EventSettings::new();
     event_settings.max_fps = 60;
     event_settings.ups = 107400;
     let mut events = Events::new(event_settings);
-    // let mut glyphs = get_glyphs(&mut window);
+
+    // font for debug screens
     let font: &[u8] = include_bytes!("../resources/fonts/PressStart2P.ttf");
     let mut glyph_brush: GlyphBrush<Resources, Factory> = GlyphBrushBuilder::using_font_bytes(font)
         .initial_cache_size((1024, 1024))
         .build(window.factory.clone());
     
-
+    // main screen texture
+    let mut texture_ctx = TextureContext {
+        factory: window.factory.clone(),
+        encoder: window.factory.create_command_buffer().into(),
+    }; 
+    let mut texture: G2dTexture = Texture::from_image(
+        &mut texture_ctx,
+        &nes.ppu.canvas_main,
+        &TextureSettings::new()
+    ).unwrap();
+    
+    
     // Main loop
     let mut run = true;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.update_args() {
             // if cpu.regs.pc == 0xC6A2 { run = false }
             if run {
-                cpu.clock(&mut bus);
+                nes.clock();
             }
         }
         if let Some(_) = event.render_args() {
-            render(&mut window, &event, &mut glyph_brush, &cpu, &bus, &disasm);
+            texture.update(&mut texture_ctx, &nes.ppu.canvas_main).unwrap();
+            window.draw_2d(&event, |c, g, d| {
+                clear(BG_COLOR, g);
+                texture_ctx.encoder.flush(d);
+                let transform = c.transform.trans(256.0, 50.0).scale(2.0, 2.0);
+                image(&texture, transform, g);
+            });
+            render_debug(&mut window, &event, &mut glyph_brush, &nes.cpu, &nes.bus, &disasm);
         }
         if let Some(Button::Keyboard(key)) = event.press_args() {
             match key {
-                Key::C => cpu.clock(&mut bus),  // advance one clock
+                Key::C => nes.clock(),  // advance one clock
                 Key::S => {  // advance to next instruction
-                    cpu.clock(&mut bus);
-                    while cpu.is_ahead() {
-                        cpu.clock(&mut bus);
+                    nes.clock();
+                    while nes.cpu.is_ahead() {
+                        nes.clock();
                     }
                 }
-                Key::R => cpu.reset(&mut bus),
+                Key::R => nes.cpu.reset(&mut nes.bus),
                 Key::Space => run = !run,
                 Key::Up => {
                     event_settings.ups = (event_settings.ups as f64 * 1.1) as u64 + 1;
@@ -122,24 +122,22 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn render(window: &mut PistonWindow, event: &Event,
+fn render_debug(window: &mut PistonWindow, event: &Event,
     glyphs: &mut GlyphBrush<Resources, Factory>,
-    cpu: &CPU, bus: &MemoryBus, disasm: &Disasm) {
-    window.draw_2d(event, |c, g, d| {
-        clear(BG_COLOR, g);
+    cpu: &CPU, _bus: &Bus, disasm: &Disasm) {
 
-
+    
+    window.draw_2d(event, |_c, _g, _d| {
         let debug_offset = [10.0, 10.0];
         render_cpu(glyphs, cpu, debug_offset);
         render_disasm(glyphs, disasm, cpu.regs.pc,
             [debug_offset[0], debug_offset[1] + (7.0 * (FT_LINE_DISTANCE+FT_SIZE_PX))]);
-        render_memory(glyphs, bus,
-            [debug_offset[0] + 400.0, debug_offset[1]]);
-        
-
+        // render_memory(glyphs, bus,
+        //     [debug_offset[0] + 400.0, debug_offset[1]]);
     });
     glyphs.use_queue().draw(&mut window.encoder, &window.output_color).unwrap();
     window.encoder.flush(&mut window.device);
+
 }
 
 fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f32; 2]) {
@@ -291,7 +289,7 @@ fn render_disasm(glyphs: &mut GlyphBrush<Resources, Factory>,
     }
 }
 
-fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, bus: &MemoryBus, offset: [f32; 2]) {
+fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, bus: &Bus, offset: [f32; 2]) {
     let mut position_y = (offset[0], offset[1]);
     for page in (0x0000..0x00FF).step_by(16) {
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;

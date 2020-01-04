@@ -17,7 +17,7 @@ impl BusDevice for Disasm {}
 
 impl Disasm {
     // Disassemble given code region
-    pub fn disassemble(mem: &MemoryBus, start: Addr, stop: Addr) -> Result<Self, Error> {
+    pub fn disassemble(mem: &Bus, start: Addr, stop: Addr) -> Result<Self, Error> {
         let mut instructions = Vec::new();
         let mut addresses = Vec::new();
         let mut mem_iter = ((start as usize) .. (stop as usize)+1).map({|a| a as Addr});
