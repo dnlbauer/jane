@@ -1,4 +1,3 @@
-// Interface for devices that contain memory that can be accessed by CPU
 use crate::nes::cartridge::Cartridge;
 use crate::nes::types::*;
 
@@ -9,6 +8,7 @@ const PPU_ADDR_RANGE: [Addr; 2] = [0x2000, 0x3fff];
 const PPU_PHYS_RANGE: [Addr; 2] = [0x2000, 0x2007];
 const CART_ADDR_RANGE: [Addr; 2] = [0x4020, 0xffff];
 
+// NES memory: Contains data from RAM, cartridge...
 pub struct NESMemory {
     ram: [Byte; RAM_SIZE], // 2kb
     cartridge: Option<Cartridge>,

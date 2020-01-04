@@ -32,19 +32,24 @@ impl NES {
         }
     }
 
+    // Insert a cartridge into the NES. This inserts the cartridge memory
+    // into the NES address range
     pub fn insert_cartridge(&mut self, cartridge: Cartridge) {
         self.memory.insert_cartridge(cartridge);
     }
 
+    // Initializes the NES CPU programm pointer
     pub fn start(&mut self) {
         self.cpu.find_pc_addr(&self.memory);
     }
 
+    // Reset the CPU
     pub fn reset(&mut self) {
         self.clock_count = 0;
         self.cpu.reset(&self.memory);
     }
 
+    // A single clock on the NES
     pub fn clock(&mut self) {
         self.clock_count += 1;
         if self.clock_count % 3 == 0 {

@@ -1,12 +1,29 @@
 use crate::nes::{Memory,MemoryReader};
 use crate::nes::types::*;
-
-pub mod instructions;
-
 use instructions::{Instruction,Operation,AddrMode};
 use core::fmt::{Debug,Formatter,Result};
 use log::{debug};
 
+pub mod instructions;
+
+// Base address of the stack in memory
+pub const STACK_BASE_ADDR: Addr = 0x0100;
+
+// constants to extract LO and HI from a value. 
+pub const LO: Addr  = 0x00FF;
+pub const HI: Addr  = 0xFF00;
+
+// CPU flags 
+pub const CARRY: Byte = 1 << 0;    // 0000 0001 0x01
+pub const ZERO: Byte = 1 << 1;     // 0000 0010 0x02
+pub const IRQ: Byte = 1 << 2;      // 0000 0100 0x04
+pub const DECIMAL: Byte = 1 << 3;  // 0000 1000 0x08
+pub const BREAK: Byte = 1 << 4;    // 0001 0000 0x10
+pub const UNUSED: Byte = 1 << 5;   // 0010 0000 0x20
+pub const OVERFLOW: Byte = 1 << 6; // 0100 0000 0x40
+pub const NEGATIVE: Byte = 1 << 7; // 1000 0000 0x80
+
+// The NES CPU registers
 pub struct Registers {
     pub a: Byte,
     pub x: Byte,
@@ -18,7 +35,6 @@ pub struct Registers {
 
 impl Registers {
     pub fn new() -> Registers {
-        // TODO true initial state of registers before reset?
         Registers {
             a: 0,
             x: 0,
@@ -36,19 +52,6 @@ impl Debug for Registers {
             self.a, self.x, self.y, self.sp, self.pc, self.flags)
     } 
 }
-
-pub const STACK_BASE_ADDR: Addr = 0x0100;
-pub const LO: Addr  = 0x00FF;
-pub const HI: Addr  = 0xFF00;
-
-pub const CARRY: Byte = 1 << 0;    // 0000 0001 0x01
-pub const ZERO: Byte = 1 << 1;     // 0000 0010 0x02
-pub const IRQ: Byte = 1 << 2;      // 0000 0100 0x04
-pub const DECIMAL: Byte = 1 << 3;  // 0000 1000 0x08
-pub const BREAK: Byte = 1 << 4;    // 0001 0000 0x10
-pub const UNUSED: Byte = 1 << 5;   // 0010 0000 0x20
-pub const OVERFLOW: Byte = 1 << 6; // 0100 0000 0x40
-pub const NEGATIVE: Byte = 1 << 7; // 1000 0000 0x80
 
 pub struct CPU {
     pub regs: Registers,
