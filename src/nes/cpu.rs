@@ -86,7 +86,7 @@ impl CPU {
             self.curr_op = opcode;
             let instruction = Instruction::decode_op(opcode);
             
-            info!("{:#06X}  {:02X} {}          A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
+            debug!("{:#06X}  {:02X} {}          A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
                 self.regs.pc-1, opcode, instruction.operation,
                 self.regs.a, self.regs.x, self.regs.y, self.regs.flags, self.regs.sp, self.cycles);
             self.cycles_ahead += self.run_instruction(mem, instruction);

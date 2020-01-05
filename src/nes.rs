@@ -85,6 +85,7 @@ impl NES {
             self.clock();
         }
         self.ppu.borrow_mut().frame_ready = false;
+        info!("clock {}", self.clock_count);
     }
 }
 

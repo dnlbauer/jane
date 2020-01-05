@@ -10,6 +10,7 @@ extern crate fps_counter;
 
 mod nes;
 
+use std::env;
 use crate::nes::*;
 use std::path::Path;
 use piston_window::*;
@@ -35,14 +36,23 @@ lazy_static! {
 }
 
 fn main() -> Result<(), Error> {
-    simple_logger::init_with_level(Level::Warn).unwrap();
-  
+    simple_logger::init_with_level(Level::Info).unwrap();
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        bail!("No cartridge supplied. Usage: ./jane cartridge.nes");
+    } else {
+        println!("Loading cartridge: {}", args[1]);
+    }
+
     let mut nes = NES::new();
-    let cartridge = Path::new("test_roms/nestest.nes");
-    let cartridge = Cartridge::new(cartridge)?;
+    let cartridge = Cartridge::new(Path::new(&args[1]))?;
     nes.insert_cartridge(cartridge);
     nes.start();
-    // nes.cpu.regs.pc = 0xC000;
+    if args.len() > 2 {
+        let pc = Addr::from_str_radix(&args[2], 16)?;
+        println!("Setting PC to {:#06x}", pc);
+        nes.cpu.regs.pc = pc;
+    }
 
     // disassemble instructions
     let disasm = Disasm::disassemble(&nes.memory, 0xC000, 0xFFFF).unwrap();
