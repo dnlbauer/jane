@@ -9,8 +9,9 @@ Usage:
 # With optional start address for the CPU (mainly for debugging)
 ./jane nestest.nes C000
 ```
-
 Make sure to compile with `--release` for 60 fps.
+
+![Screenshot](https://i.imgur.com/1TMHZrs.png)
 
 ### what works
 * CPU
