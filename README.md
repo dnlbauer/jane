@@ -1,7 +1,5 @@
 # Jane - Just another NES emulator
 
-Just another implementation of a NES emulator written in Rust.
-
 **A note of warning:** This is an exploratory coding project with the aim to explore concepts of assembler and emulation. If you are looking for a cycle-accurate ready-to-use NES emulator to play your favorite childhood games, use another emulator.
 
 Usage:
