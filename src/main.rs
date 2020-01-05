@@ -6,6 +6,7 @@ extern crate simple_logger;
 extern crate phf;
 extern crate piston_window;
 extern crate rand;
+extern crate fps_counter;
 
 mod nes;
 
@@ -17,7 +18,7 @@ use nes::disasm::*;
 use opengl_graphics::OpenGL;
 use log::Level;
 use failure::Error;
-
+use fps_counter::FPSCounter;
 use gfx_glyph::{Section, GlyphBrushBuilder,GlyphBrush, Scale};
 use gfx_device_gl::{Resources,Factory};
 
@@ -34,7 +35,7 @@ lazy_static! {
 }
 
 fn main() -> Result<(), Error> {
-    simple_logger::init_with_level(Level::Info).unwrap();
+    simple_logger::init_with_level(Level::Warn).unwrap();
   
     let mut nes = NES::new();
     let cartridge = Path::new("test_roms/nestest.nes");
@@ -47,18 +48,24 @@ fn main() -> Result<(), Error> {
     let disasm = Disasm::disassemble(&nes.memory, 0xC000, 0xFFFF).unwrap();
 
     // Prepare window and drawing resources
-    let mut window: PistonWindow = WindowSettings::new("xXx NESemu xXx", [256*3, 240*2+50])
+
+    // debugger + scaled nes resolution + border
+    let window_width = 300 + 256 * 2 + 5;
+    let window_height = 40 + 240*2 + 5;
+    let mut window: PistonWindow = WindowSettings::new("xXx NESemu xXx", [window_width, window_height])
         .exit_on_esc(true).graphics_api(OpenGL::V3_2).build().unwrap();
     let mut event_settings = EventSettings::new();
     event_settings.max_fps = 60;
-    event_settings.ups = 107400;
     let mut events = Events::new(event_settings);
 
     // font for debug screens
     let font: &[u8] = include_bytes!("../resources/fonts/PressStart2P.ttf");
-    let mut glyph_brush: GlyphBrush<Resources, Factory> = GlyphBrushBuilder::using_font_bytes(font)
+    let mut glyphs: GlyphBrush<Resources, Factory> = GlyphBrushBuilder::using_font_bytes(font)
         .initial_cache_size((1024, 1024))
         .build(window.factory.clone());
+
+    // fps counter
+    let mut fps = FPSCounter::new();
     
     // main screen texture
     let mut texture_ctx = TextureContext {
@@ -67,7 +74,7 @@ fn main() -> Result<(), Error> {
     }; 
     let mut texture: G2dTexture = Texture::from_image(
         &mut texture_ctx,
-        &nes.ppu.canvas_main,
+        &nes.ppu.borrow().canvas_main,
         &TextureSettings::new()
     ).unwrap();
     
@@ -75,31 +82,37 @@ fn main() -> Result<(), Error> {
     // Main loop
     let mut run = true;
     while let Some(event) = events.next(&mut window) {
-        if let Some(_) = event.update_args() {
-            // if cpu.regs.pc == 0xC6A2 { run = false }
-            if run {
-                nes.clock();
-            }
-        }
         if let Some(_) = event.render_args() {
-            texture.update(&mut texture_ctx, &nes.ppu.canvas_main).unwrap();
+            // Run enough clocks to render the next frame
+            if run { nes.clock_frame(); }
+
+            texture.update(&mut texture_ctx, &nes.ppu.borrow().canvas_main).unwrap();
             window.draw_2d(&event, |c, g, d| {
                 clear(BG_COLOR, g);
                 texture_ctx.encoder.flush(d);
-                let transform = c.transform.trans(256.0, 50.0).scale(2.0, 2.0);
+                let transform = c.transform.trans(300.0, 40.0).scale(2.0, 2.0);
                 image(&texture, transform, g);
+
+                // fps
+                let fps = fps.tick();
+                let position = (410.0, 10.0 + FT_SIZE_PX);
+                let color = if fps < 60 { FT_COLOR_RED } else { FT_COLOR_WHITE };
+                glyphs.queue(Section {
+                    text: &format!("FPS: {}", fps),
+                    scale: *FT_SCALE,
+                    screen_position: position,
+                    color: color,
+                    ..Section::default() 
+                });
+
             });
-            render_debug(&mut window, &event, &mut glyph_brush, &nes.cpu, &nes, &disasm);
+            render_debug(&mut window, &event, &mut glyphs, &nes, &disasm);
         }
         if let Some(Button::Keyboard(key)) = event.press_args() {
             match key {
                 Key::C => nes.clock(),  // advance one clock
-                Key::S => {  // advance to next instruction
-                    nes.clock();
-                    while nes.cpu.is_ahead() {
-                        nes.clock();
-                    }
-                }
+                Key::S => { nes.clock_instruction() }
+                Key::F => { nes.clock_frame() }
                 Key::R => nes.reset(),
                 Key::Space => run = !run,
                 Key::Up => {
@@ -121,14 +134,14 @@ fn main() -> Result<(), Error> {
 
 fn render_debug(window: &mut PistonWindow, event: &Event,
     glyphs: &mut GlyphBrush<Resources, Factory>,
-    cpu: &CPU, _nes: &NES, disasm: &Disasm) {
+    nes: &NES, disasm: &Disasm) {
 
     
     window.draw_2d(event, |_c, _g, _d| {
         let debug_offset = [10.0, 10.0];
-        render_cpu(glyphs, cpu, debug_offset);
-        render_disasm(glyphs, disasm, cpu.regs.pc,
-            [debug_offset[0], debug_offset[1] + (7.0 * (FT_LINE_DISTANCE+FT_SIZE_PX))]);
+        render_cpu(glyphs, &nes.cpu, debug_offset);
+        render_disasm(glyphs, disasm, nes.cpu.regs.pc,
+            [debug_offset[0], debug_offset[1] + (8.0 * (FT_LINE_DISTANCE+FT_SIZE_PX))]);
         // render_memory(glyphs, nes,
         //     [debug_offset[0] + 400.0, debug_offset[1]]);
     });
@@ -236,6 +249,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
             &format!("Y: {0:#x} ({0})", cpu.regs.y),
             &format!("Stack P: {0:#x} ({0})", cpu.regs.sp),
             &format!("Program P: {:#x}", cpu.regs.pc),
+            &format!("#CPU Cycles: {}", cpu.cycles),
         ]; 
 
         for (i, &text) in cpu_register_texts.iter().enumerate() {

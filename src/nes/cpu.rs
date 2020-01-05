@@ -56,7 +56,7 @@ impl Debug for Registers {
 pub struct CPU {
     pub regs: Registers,
     curr_op: Byte,  // current operation
-    cycles: u64,  // number of clock clycles the CPU is ahead of global clock
+    pub cycles: u64,  // number of clock clycles the CPU is ahead of global clock
     cycles_ahead: u8,
     stopped: bool, 
 }

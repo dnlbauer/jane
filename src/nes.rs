@@ -1,3 +1,5 @@
+use core::cell::RefCell;
+use std::rc::Rc;
 pub use crate::nes::cartridge::Cartridge;
 pub use crate::nes::ppu::PPU;
 pub use crate::nes::cpu::CPU;
@@ -17,17 +19,23 @@ pub mod ppu;
 // as the mediator between the different components and hold the RAM 
 pub struct NES {
     pub cpu: CPU,
-    pub ppu: PPU,
+    pub ppu: Rc<RefCell<PPU>>,
     pub memory: NESMemory,
     pub clock_count: u64,
 }
 
 impl NES {
     pub fn new() -> Self {
+        // The memory module needs access to some parts of the nes like the ppu
+        // to forward cpu reads to it. Because the NES also requires access
+        // to the PPU for clocking, we use shared ownership. Otherwise, all
+        // components except the CPU would have to live inside the memory
+        // instance, which is conceptually not what we are looking for.
+        let ppu = Rc::new(RefCell::new(PPU::new()));
         NES {
             cpu: CPU::new(),
-            ppu: PPU::new(),
-            memory: NESMemory::new(),
+            ppu: ppu.clone(),
+            memory: NESMemory::new(ppu.clone()),
             clock_count: 0,
         }
     }
@@ -55,7 +63,28 @@ impl NES {
         if self.clock_count % 3 == 0 {
             self.cpu.clock(&mut self.memory);
         }
-        self.ppu.clock(&mut self.memory);
+        self.ppu.borrow_mut().clock(&mut self.memory);
+    }
+
+
+    // clock until the next cpu instruction is run
+    pub fn clock_instruction(&mut self) {
+        if !self.cpu.is_ahead() {
+            while !self.cpu.is_ahead() {
+                self.clock();
+            }
+        } 
+        while self.cpu.is_ahead() {
+            self.clock();
+        }
+    }
+
+    // clock until the next frame is ready
+    pub fn clock_frame(&mut self) {
+        while !self.ppu.borrow().frame_ready {
+            self.clock();
+        }
+        self.ppu.borrow_mut().frame_ready = false;
     }
 }
 

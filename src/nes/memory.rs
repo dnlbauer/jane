@@ -1,24 +1,29 @@
+use crate::nes::ppu::PPU;
+use std::rc::Rc;
+use core::cell::RefCell;
 use crate::nes::cartridge::Cartridge;
 use crate::nes::types::*;
 
-const RAM_SIZE: usize  = 0x0800;
-const RAM_ADDR_RANGE: [Addr; 2] = [0x0000, 0x1fff];
-const RAM_PHYS_RANGE: [Addr; 2] = [0x0000, 0x07ff];
-const PPU_ADDR_RANGE: [Addr; 2] = [0x2000, 0x3fff];
-const PPU_PHYS_RANGE: [Addr; 2] = [0x2000, 0x2007];
-const CART_ADDR_RANGE: [Addr; 2] = [0x4020, 0xffff];
+pub const RAM_SIZE: usize  = 0x0800;
+pub const RAM_ADDR_RANGE: [Addr; 2] = [0x0000, 0x1fff];
+pub const RAM_PHYS_RANGE: [Addr; 2] = [0x0000, 0x07ff];
+pub const PPU_ADDR_RANGE: [Addr; 2] = [0x2000, 0x3fff];
+pub const PPU_PHYS_RANGE: [Addr; 2] = [0x2000, 0x2007];
+pub const CART_ADDR_RANGE: [Addr; 2] = [0x4020, 0xffff];
 
 // NES memory: Contains data from RAM, cartridge...
 pub struct NESMemory {
     ram: [Byte; RAM_SIZE], // 2kb
     cartridge: Option<Cartridge>,
+    ppu: Rc<RefCell<PPU>>,
 }
 
 impl NESMemory {
-    pub fn new() -> Self {
+    pub fn new(ppu: Rc<RefCell<PPU>>) -> Self {
         NESMemory {
             ram: [0; RAM_SIZE],
             cartridge: None,
+            ppu: ppu,
         }
     }
 
@@ -48,15 +53,14 @@ impl Memory for NESMemory {
                 return cartridge.readb(addr)
             } 
         }
-
         if RAM_ADDR_RANGE[0] <= addr && addr <= RAM_ADDR_RANGE[1] {
             // Ram is 3x mirrored after 0x07ff
             return self.ram[(addr & RAM_PHYS_RANGE[1]) as usize]
         }
-        // if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
-        //     // PPU memory is mirrored after 0x2007 to 0x3fff 
-        //     return self.ram[(addr & PPU_PHYS_RANGE[1]) as usize]
-        // }
+        if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
+            let ppu = self.ppu.borrow();
+            return ppu.readb(addr & PPU_PHYS_RANGE[1]);
+        }
         0x0000  // generic response
     }
 
@@ -70,10 +74,10 @@ impl Memory for NESMemory {
             // Ram is 3x mirrored after 07ff
             self.ram[(addr & RAM_PHYS_RANGE[1]) as usize] = data
         }
-        // if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
-        //     // PPU memory is mirrored after 0x2007 to 0x3fff
-        //     self.ram[(addr & PPU_PHYS_RANGE[1]) as usize] = data
-        // }
+        if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
+            let mut ppu = self.ppu.borrow_mut();
+            ppu.writeb(addr & PPU_PHYS_RANGE[1], data);
+        }
     } 
 }
 
