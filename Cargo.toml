@@ -1,8 +1,9 @@
 [package]
-name = "NESemu"
+name = "jane"
 version = "0.1.0"
-authors = ["Daniel Bauer <bauer@cbs.tu-darmstadt.de>"]
+authors = ["Daniel Bauer"]
 edition = "2018"
+description = "jane - just another NES emulator"
 
 [features]
 test = []
