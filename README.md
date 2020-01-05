@@ -2,7 +2,7 @@
 
 Just another implementation of a NES emulator written in Rust.
 
-**A note of warning:** This is an exploratory coding project with the aim to understand concepts of assembler and emulation in general. If you are looking for a cycle-accurate ready-to-use NES emulator to play some games, this is the wrong one.
+**A note of warning:** This is an exploratory coding project with the aim to explore concepts of assembler and emulation. If you are looking for a cycle-accurate ready-to-use NES emulator to play your favorite childhood games, use another emulator.
 
 Usage:
 ``` bash
@@ -14,13 +14,13 @@ Usage:
 
 Make sure to compile with `--release` for 60 fps.
 
-## what works
+### what works
 * CPU
 * Reading Roms (iNES) 
 * Memory mapping and RAM
 * A very simplistic debugger
 
-## what does not work
+### what does not work
 * GPU / graphics
 * APU / sound
 * Controllers
