@@ -25,3 +25,5 @@ Make sure to compile with `--release` for 60 fps.
 * a lot of mappers
 * game saves
 * everything else
+
+*This code is heavily inspired by the 'NES Emulator' youtube series from One Lone Coder. Check it out. He's great!*
