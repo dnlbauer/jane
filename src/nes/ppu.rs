@@ -171,6 +171,53 @@ impl PPU {
             } 
         }
     }
+
+    // Get the correct color for the pixel from the given palette
+    fn get_color(&self, pixel: Byte, _palette: Byte) -> Pixel {
+        // TODO: not implemented yet. returns some black and white color
+        match pixel {
+            0 => PALETTE[&0x30],
+            1 => PALETTE[&0x3d],
+            2 => PALETTE[&0x2d],
+            _ => PALETTE[&0x3f]
+        }
+    }
+
+    // Get one of the two pattern tables of the PPU
+    // This also initializes/updates the pattern table
+    fn get_pattern_table<T: PPUMemory>(&mut self, index: usize, _palette: Byte, mem: &T) -> &Sprite {
+        // 16 x 16 tiles of 8x8px sprites per pattern table => 128x128px
+        for x in 0..16 {  // tile row
+            for y in 0..16 {  // tile column
+                // byte offset in pattern mem. Each row is 256 bytes
+                // and each pixel is 16 bytes
+                let tile_offset_b = y*256 + x*16;  
+
+                // iterate over individual pixels of one tile
+                for row in 0..8 { 
+                    let tile_addr = index as Addr * 0x1000 + tile_offset_b + row;
+
+                    // NES memory organization: The pattern table defines the
+                    // two least significant bits of the color (value between
+                    // 0-3). Two bitplanes in memory each having one byte per
+                    // row 
+                    let mut tile_lsb = mem.readb_ppu(tile_addr);
+                    let mut tile_msb = mem.readb_ppu(tile_addr + 8);
+                    for col in 0..8 {
+                        let pixel = (tile_lsb & 0x01) + (tile_msb & 0x01);
+                        self.pattern_table[index].put_pixel(
+                            (x * 8 + (7-col)) as u32, // x starts on the right, sprit is from left
+                            (y * 8 + row) as u32,
+                            self.get_color(123, pixel));
+                        tile_lsb >>= 1;
+                        tile_msb >>= 1;
+                    } 
+                } 
+            }
+        }
+
+        &self.pattern_table[index]
+    }
 }
 
 impl Memory for PPU {
