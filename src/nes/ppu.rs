@@ -1,10 +1,14 @@
+use crate::nes::memory::PPUMemory;
 use phf::{Map,phf_map};
 use crate::nes::types::*;
 use crate::nes::memory::Memory;
 use image::{ImageBuffer, Rgba};
 use rand::Rng;
 
-static PALETTE: Map<u8, Rgba<u8>> = phf_map! {
+type Pixel = Rgba<u8>;
+type Sprite = ImageBuffer<Pixel, Vec<u8>>;
+
+static PALETTE: Map<u8, Pixel> = phf_map! {
     // 0x00
     0x00u8 => Rgba([84, 84, 84, 255]),
     0x01u8 => Rgba([0, 30, 116, 255]),
@@ -75,10 +79,49 @@ static PALETTE: Map<u8, Rgba<u8>> = phf_map! {
     0x3fu8 => Rgba([0, 0, 0, 255]),
 };
 
+struct Registers {
+    // 0x2000
+    ctrl: Word,
+    // 0x2001
+    mask: Word,
+    // 0x2002
+    status: Word,
+    // 0x2003
+    oam_addr: Word,
+    // 0x2004
+    oam_data: Word,
+    // 0x2005
+    scroll: Word,
+    // 0x2006
+    addr: Word,
+    // 0x2007
+    data: Word, 
+    // 0x2008
+    dma: Word,  // 0x4014 
+}
+
+impl Registers {
+    fn new() -> Registers {
+        Registers {
+           ctrl: 0x00,
+           mask: 0x00,
+           status: 0x00,
+           oam_addr: 0x00,
+           oam_data: 0x00,
+           scroll: 0x00,
+           addr: 0x00,
+           data: 0x00,
+           dma: 0x00, 
+        }
+    }
+}
+
 pub struct PPU {
+    registers: Registers,
     pub cycle: u16, 
     pub scanline: u16,
-    pub canvas_main: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    pub canvas_main: Sprite,
+    pattern_table: [Sprite; 2],
     pub frame_ready: bool
 
 }
@@ -86,11 +129,17 @@ pub struct PPU {
 impl PPU {
     pub fn new() -> Self {
         PPU {
+            registers: Registers::new(),
             cycle: 0,
             scanline: 0,
             canvas_main: ImageBuffer::new(256, 240),
+            pattern_table: [ImageBuffer::new(128, 128), ImageBuffer::new(128, 128)],
             frame_ready: false,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.registers = Registers::new();
     }
 
     pub fn clock<T: Memory>(&mut self, _mem: &mut T) {
@@ -121,7 +170,7 @@ impl PPU {
                 self.frame_ready = true;
             } 
         }
-    } 
+    }
 }
 
 impl Memory for PPU {

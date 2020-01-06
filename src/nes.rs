@@ -55,6 +55,7 @@ impl NES {
     pub fn reset(&mut self) {
         self.clock_count = 0;
         self.cpu.reset(&self.memory);
+        self.ppu.borrow_mut().reset();
     }
 
     // A single clock on the NES
