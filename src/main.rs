@@ -277,7 +277,26 @@ fn render_ppu(glyphs: &mut GlyphBrush<Resources, Factory>, ppu: &PPU, offset: [f
             ],
             position);
 
-     
+    let ppu_register_texts = [
+            &format!("OAM Addr: {0:#x}", ppu.regs.oam_addr),
+            &format!("OAM Data: {0:#x}", ppu.regs.oam_data),
+            &format!("Scroll: {0:#x}", ppu.regs.scroll),
+            &format!("Addr: {0:#x}", ppu.regs.addr),
+            &format!("Data: {:#x}", ppu.regs.data),
+            &format!("DMA: {:#x}", ppu.regs.dma),
+        ]; 
+
+    position[1] += FT_LINE_DISTANCE + FT_SIZE_PX;
+    for &text in ppu_register_texts.iter() {
+        position[1] += FT_LINE_DISTANCE + FT_SIZE_PX;
+        glyphs.queue(Section {
+            text: text,
+            scale: *FT_SCALE,
+            screen_position: (position[0], position[1]),
+            color: FT_COLOR_WHITE,
+            ..Section::default()
+        });
+    }     
 }
 
 fn render_disasm(glyphs: &mut GlyphBrush<Resources, Factory>,
