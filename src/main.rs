@@ -77,7 +77,7 @@ fn main() -> Result<(), Error> {
 
     // fps counter
     let mut fps = FPSCounter::new();
-    
+
     // main screen texture
     let mut texture_ctx = TextureContext {
         factory: window.factory.clone(),
@@ -91,11 +91,13 @@ fn main() -> Result<(), Error> {
     
     
     // Main loop
-    let mut run = true;
+    let mut run = false;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.render_args() {
             // Run enough clocks to render the next frame
-            if run { nes.clock_frame(); }
+            // if run { nes.clock_frame(); }
+            if run { nes.clock_scanline(); }
+
 
             texture.update(&mut texture_ctx, &nes.ppu.borrow().canvas_main).unwrap();
             window.draw_2d(&event, |c, g, d| {
@@ -124,18 +126,9 @@ fn main() -> Result<(), Error> {
                 Key::C => nes.clock(),  // advance one clock
                 Key::S => { nes.clock_instruction() }
                 Key::F => { nes.clock_frame() }
+                Key::L => { nes.clock_scanline() }
                 Key::R => nes.reset(),
                 Key::Space => run = !run,
-                Key::Up => {
-                    event_settings.ups = (event_settings.ups as f64 * 1.1) as u64 + 1;
-                    events = Events::new(event_settings);
-                    debug!("UPS: {}", event_settings.ups);
-                }
-                Key::Down => {
-                    event_settings.ups = (event_settings.ups as f64 * 0.91) as u64;
-                    events = Events::new(event_settings);
-                    debug!("UPS: {}", event_settings.ups);
-                }
                 _ => { }
             }
         }     
@@ -153,6 +146,7 @@ fn render_debug(window: &mut PistonWindow, event: &Event,
         render_cpu(glyphs, &nes.cpu, debug_offset);
         render_disasm(glyphs, disasm, nes.cpu.regs.pc,
             [debug_offset[0], debug_offset[1] + (8.0 * (FT_LINE_DISTANCE+FT_SIZE_PX))]);
+        render_ppu(glyphs, &nes.ppu.borrow(), [debug_offset[0], debug_offset[1] + (25.0 * (FT_LINE_DISTANCE+FT_SIZE_PX))])
         // render_memory(glyphs, nes,
         //     [debug_offset[0] + 400.0, debug_offset[1]]);
     });
@@ -161,11 +155,11 @@ fn render_debug(window: &mut PistonWindow, event: &Event,
 
 }
 
-fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f32; 2]) {
-        // draw flags
+fn render_flags(glyphs: &mut GlyphBrush<Resources, Factory>, name: &str,
+    names: Vec<&str>, values: Vec<bool>, offset: [f32; 2]) {
         let mut position = (offset[0], offset[1] + FT_SIZE_PX);
         glyphs.queue(Section {
-            text: "Flags:",
+            text: name,
             scale: *FT_SCALE,
             screen_position: position,
             color: FT_COLOR_WHITE,
@@ -173,86 +167,34 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
         });
 
         position.0 += 70.0;
-        let color = if cpu.is_flag_set(Flags::NEGATIVE) { FT_COLOR_GREEN } else { FT_COLOR_RED };
-        glyphs.queue(Section {
-                text: "N",
+        for (flag, value) in names.iter().zip(values.iter()) {
+            let color = if *value { FT_COLOR_GREEN } else { FT_COLOR_RED };
+            glyphs.queue(Section {
+                text: flag,
                 scale: *FT_SCALE,
                 screen_position: position,
                 color: color,
                 ..Section::default()
             });
-        position.0 += 16.0;
-        let color = if cpu.is_flag_set(Flags::OVERFLOW) { FT_COLOR_GREEN } else { FT_COLOR_RED };
-        glyphs.queue(Section {
-                text: "V",
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
-        position.0 += 16.0;
-        let color = FT_COLOR_WHITE;
-        glyphs.queue(Section {
-                text: "-",
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
-        position.0 += 16.0;
-        let color = if cpu.is_flag_set(Flags::BREAK) { FT_COLOR_GREEN } else { FT_COLOR_RED };
-        glyphs.queue(Section {
-                text: "B",
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
-        position.0 += 16.0;
-        let color = if cpu.is_flag_set(Flags::DECIMAL) { FT_COLOR_GREEN } else { FT_COLOR_RED };
-        glyphs.queue(Section {
-                text: "D",
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
-        position.0 += 16.0;
-        let color = if cpu.is_flag_set(Flags::IRQ) { FT_COLOR_GREEN } else { FT_COLOR_RED };
-        glyphs.queue(Section {
-                text: "I",
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
-        position.0 += 16.0;
-        let color = if cpu.is_flag_set(Flags::ZERO) { FT_COLOR_GREEN } else { FT_COLOR_RED };
-        glyphs.queue(Section {
-                text: "Z",
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
-        position.0 += 16.0;
-        let color = if cpu.is_flag_set(Flags::CARRY) { FT_COLOR_GREEN } else { FT_COLOR_RED };
-        glyphs.queue(Section {
-                text: "C",
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
-        position.0 += 16.0;
-        let color = FT_COLOR_WHITE;
-        glyphs.queue(Section {
-                text: &format!("{:#06x}", cpu.regs.flags),
-                scale: *FT_SCALE,
-                screen_position: position,
-                color: color,
-                ..Section::default()
-            });
+            position.0 += 16.0;
+        } 
+}
+
+fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f32; 2]) {
+        render_flags(glyphs,
+            "Flags",
+            vec!["N", "V", "-", "B", "D", "I", "Z", "C"],
+            vec![
+                cpu.is_flag_set(Flags::NEGATIVE),
+                cpu.is_flag_set(Flags::OVERFLOW),
+                cpu.is_flag_set(Flags::UNUSED),
+                cpu.is_flag_set(Flags::BREAK),
+                cpu.is_flag_set(Flags::DECIMAL),
+                cpu.is_flag_set(Flags::IRQ),
+                cpu.is_flag_set(Flags::ZERO),
+                cpu.is_flag_set(Flags::CARRY) 
+            ],
+            offset);
 
         let cpu_register_texts = [
             &format!("A: {0:#x} ({0})", cpu.regs.a),
@@ -276,6 +218,68 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
         }
 }
 
+fn render_ppu(glyphs: &mut GlyphBrush<Resources, Factory>, ppu: &PPU, offset: [f32; 2]) {
+    // draw position
+    let mut position = [offset[0], offset[1] + FT_SIZE_PX];
+    glyphs.queue(Section {
+        text: &format!("SLine/Cycle: {:03}/{:03}", ppu.scanline, ppu.cycle),
+        scale: *FT_SCALE,
+        screen_position: (position[0], position[1]),
+        color: FT_COLOR_WHITE,
+        ..Section::default() 
+    });
+
+    // control register
+    position[1] += FT_LINE_DISTANCE + FT_SIZE_PX;
+    render_flags(glyphs,
+            "Ctrl",
+            vec!["V", "P", "H", "B", "S", "I", "N", "N"],
+            vec![
+                (ppu.regs.ctrl & (1 << 7)) > 0,
+                (ppu.regs.ctrl & (1 << 6)) > 0,
+                (ppu.regs.ctrl & (1 << 5)) > 0,
+                (ppu.regs.ctrl & (1 << 4)) > 0,
+                (ppu.regs.ctrl & (1 << 3)) > 0,
+                (ppu.regs.ctrl & (1 << 2)) > 0,
+                (ppu.regs.ctrl & (1 << 1)) > 0,
+            ],
+            position);
+
+    // mask register
+    position[1] += FT_LINE_DISTANCE + FT_SIZE_PX;
+    render_flags(glyphs,
+            "Mask",
+            vec!["B", "G", "R", "s", "b", "M", "m", "G"],
+            vec![
+                (ppu.regs.mask & (1 << 7)) > 0,
+                (ppu.regs.mask & (1 << 6)) > 0,
+                (ppu.regs.mask & (1 << 5)) > 0,
+                (ppu.regs.mask & (1 << 4)) > 0,
+                (ppu.regs.mask & (1 << 3)) > 0,
+                (ppu.regs.mask & (1 << 2)) > 0,
+                (ppu.regs.mask & (1 << 1)) > 0,
+            ],
+            position);
+
+    // status register
+    position[1] += FT_LINE_DISTANCE + FT_SIZE_PX;
+    render_flags(glyphs,
+            "Status",
+            vec!["V", "S", "O", "-", "-", "-", "-", "-"],
+            vec![
+                (ppu.regs.status & (1 << 7)) > 0,
+                (ppu.regs.status & (1 << 6)) > 0,
+                (ppu.regs.status & (1 << 5)) > 0,
+                (ppu.regs.status & (1 << 4)) > 0,
+                (ppu.regs.status & (1 << 3)) > 0,
+                (ppu.regs.status & (1 << 2)) > 0,
+                (ppu.regs.status & (1 << 1)) > 0,
+            ],
+            position);
+
+     
+}
+
 fn render_disasm(glyphs: &mut GlyphBrush<Resources, Factory>,
     disasm: &Disasm, pc: Addr, offset: [f32; 2]) {
     let pc_position = disasm.addresses.iter().position(|&pos| pos == pc);
@@ -283,7 +287,7 @@ fn render_disasm(glyphs: &mut GlyphBrush<Resources, Factory>,
         return;
     }
     let pc_position = pc_position.unwrap();
-    let lines_above_below: usize = 12;
+    let lines_above_below: usize = 7;
 
     let start = if (pc_position as i32 - lines_above_below as i32) < 0 {
          0

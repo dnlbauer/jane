@@ -1,103 +1,68 @@
-use crate::nes::memory::PPUMemory;
-use phf::{Map,phf_map};
+use crate::nes::memory::{Memory,PPUMemoryReader,PPUMemory};
 use crate::nes::types::*;
-use crate::nes::memory::Memory;
 use image::{ImageBuffer, Rgba};
 use rand::Rng;
+use palette::PALETTE;
 
-type Pixel = Rgba<u8>;
-type Sprite = ImageBuffer<Pixel, Vec<u8>>;
+pub mod palette;
 
-static PALETTE: Map<u8, Pixel> = phf_map! {
-    // 0x00
-    0x00u8 => Rgba([84, 84, 84, 255]),
-    0x01u8 => Rgba([0, 30, 116, 255]),
-    0x02u8 => Rgba([8, 16, 144, 255]),
-    0x03u8 => Rgba([48, 0, 136, 255]),
-    0x04u8 => Rgba([68, 0, 100, 255]),
-    0x05u8 => Rgba([92, 0, 48, 255]),
-    0x06u8 => Rgba([84, 4, 0, 255]),
-    0x07u8 => Rgba([60, 24, 0, 255]),
-    0x08u8 => Rgba([32, 42, 0, 255]),
-    0x09u8 => Rgba([8, 58, 0, 255]),
-    0x0au8 => Rgba([0, 64, 0, 255]),
-    0x0bu8 => Rgba([0, 60, 0, 255]),
-    0x0cu8 => Rgba([0, 50, 60, 255]),
-    0x0du8 => Rgba([0, 0, 0, 255]),
-    0x0eu8 => Rgba([0, 0, 0, 255]),
-    0x0fu8 => Rgba([0, 0, 0, 255]),
-    // 0x10
-    0x10u8 => Rgba([152, 150, 152, 255]),
-    0x11u8 => Rgba([8, 76, 196, 255]),
-    0x12u8 => Rgba([48, 50, 236, 255]),
-    0x13u8 => Rgba([92, 30, 228, 255]),
-    0x14u8 => Rgba([136, 20, 176, 255]),
-    0x15u8 => Rgba([160, 20, 100, 255]),
-    0x16u8 => Rgba([152, 34, 32, 255]),
-    0x17u8 => Rgba([120, 60, 0, 255]),
-    0x18u8 => Rgba([84, 90, 0, 255]),
-    0x19u8 => Rgba([40, 114, 0, 255]),
-    0x1au8 => Rgba([8, 124, 0, 255]),
-    0x1bu8 => Rgba([0, 118, 40, 255]),
-    0x1cu8 => Rgba([0, 102, 120, 255]),
-    0x1du8 => Rgba([0, 0, 0, 255]),
-    0x1eu8 => Rgba([0, 0, 0, 255]),
-    0x1fu8 => Rgba([0, 0, 0, 255]),
-    // 0x20
-    0x20u8 => Rgba([236, 238, 236, 255]),
-    0x21u8 => Rgba([76, 154, 236, 255]),
-    0x22u8 => Rgba([120, 124, 236, 255]),
-    0x23u8 => Rgba([176, 98, 236, 255]),
-    0x24u8 => Rgba([228, 84, 236, 255]),
-    0x25u8 => Rgba([236, 88, 180, 255]),
-    0x26u8 => Rgba([236, 106, 100, 255]),
-    0x27u8 => Rgba([212, 136, 32, 255]),
-    0x28u8 => Rgba([160, 170, 0, 255]),
-    0x29u8 => Rgba([116, 196, 0, 255]),
-    0x2au8 => Rgba([76, 208, 32, 255]),
-    0x2bu8 => Rgba([56, 204, 108, 255]),
-    0x2cu8 => Rgba([56, 180, 204, 255]),
-    0x2du8 => Rgba([60, 60, 60, 255]),
-    0x2eu8 => Rgba([0, 0, 0, 255]),
-    0x2fu8 => Rgba([0, 0, 0, 255]),
-    // 0x30
-    0x30u8 => Rgba([236, 238, 236, 255]),
-    0x31u8 => Rgba([168, 204, 236, 255]),
-    0x32u8 => Rgba([188, 188, 236, 255]),
-    0x33u8 => Rgba([212, 178, 236, 255]),
-    0x34u8 => Rgba([236, 174, 236, 255]),
-    0x35u8 => Rgba([236, 174, 212, 255]),
-    0x36u8 => Rgba([236, 180, 176, 255]),
-    0x37u8 => Rgba([228, 196, 144, 255]),
-    0x38u8 => Rgba([204, 210, 120, 255]),
-    0x39u8 => Rgba([180, 222, 120, 255]),
-    0x3au8 => Rgba([168, 226, 144, 255]),
-    0x3bu8 => Rgba([152, 226, 180, 255]),
-    0x3cu8 => Rgba([160, 214, 228, 255]),
-    0x3du8 => Rgba([160, 162, 160, 255]),
-    0xe3u8 => Rgba([0, 0, 0, 255]),
-    0x3fu8 => Rgba([0, 0, 0, 255]),
-};
+pub type Pixel = Rgba<u8>;
+pub type Sprite = ImageBuffer<Pixel, Vec<u8>>;
 
-struct Registers {
+
+pub const CTRL_NAMETBL_X: Byte           = 1 << 0;
+pub const CTRL_NAMETBL_Y: Byte           = 1 << 1;
+pub const CTRL_INCR_MODE: Byte           = 1 << 2;
+pub const CTRL_PATTERN_SPRITE: Byte      = 1 << 3;
+pub const CTRL_PATTERN_BG: Byte          = 1 << 4;
+pub const CTRL_SPRITE_SIZE: Byte         = 1 << 5;
+pub const CTRL_SLAVE_MODE: Byte          = 1 << 6;
+pub const CTRL_ENABLE_NMI: Byte          = 1 << 7;
+
+pub const STATUS_SPRITE_OVERFOL: Byte    = 1 << 5;
+pub const STATUS_SPRITE_ZERO_HIT: Byte    = 1 << 6;
+pub const STATUS_VERTICAL_BLANK: Byte     = 1 << 7;
+
+pub const MASK_GRAYSCALE: Byte           = 1 << 0;
+pub const MASK_RENDER_BG_LEFT: Byte      = 1 << 1;
+pub const MASK_RENDER_SPRITES_LEFT: Byte = 1 << 2;
+pub const MASK_RENDER_BG: Byte           = 1 << 3;
+pub const MASK_RENDER_SPRITES: Byte      = 1 << 4;
+pub const MASK_ENHANCE_RED: Byte         = 1 << 5;
+pub const MASK_ENHANCE_GREEN: Byte       = 1 << 6;
+pub const MASK_ENHANCE_BLUE: Byte        = 1 << 7;
+
+enum PPURegister {
+    Control,
+    Mask,
+    Status,
+    OAMAddr,
+    OAMData,
+    Scroll,
+    Addr,
+    Data,
+    DMA 
+}
+
+pub struct Registers {
     // 0x2000
-    ctrl: Word,
+    pub ctrl: Byte,
     // 0x2001
-    mask: Word,
+    pub mask: Byte,
     // 0x2002
-    status: Word,
+    pub status: Byte,
     // 0x2003
-    oam_addr: Word,
+    pub oam_addr: Byte,
     // 0x2004
-    oam_data: Word,
+    pub oam_data: Byte,
     // 0x2005
-    scroll: Word,
+    pub scroll: Byte,
     // 0x2006
-    addr: Word,
+    pub addr: Byte,
     // 0x2007
-    data: Word, 
+    pub data: Byte, 
     // 0x2008
-    dma: Word,  // 0x4014 
+    pub dma: Byte,  // 0x4014 
 }
 
 impl Registers {
@@ -117,19 +82,20 @@ impl Registers {
 }
 
 pub struct PPU {
-    registers: Registers,
+    pub regs: Registers,
     pub cycle: u16, 
     pub scanline: u16,
     pub canvas_main: Sprite,
     pattern_table: [Sprite; 2],
     pub frame_ready: bool
-
 }
+
+impl PPUMemoryReader for PPU {}
 
 impl PPU {
     pub fn new() -> Self {
         PPU {
-            registers: Registers::new(),
+            regs: Registers::new(),
             cycle: 0,
             scanline: 0,
             canvas_main: ImageBuffer::new(256, 240),
@@ -139,37 +105,81 @@ impl PPU {
     }
 
     pub fn reset(&mut self) {
-        self.registers = Registers::new();
+        self.regs = Registers::new();
     }
 
-    pub fn clock<T: Memory>(&mut self, _mem: &mut T) {
-        if (self.cycle < self.canvas_main.width() as u16) && 
-            (self.scanline < self.canvas_main.height() as u16) {
-            // random noise
-            let mut rng = rand::thread_rng();
-            let x = self.cycle;
-            let y = self.scanline;
-        
-            let color = rng.gen::<bool>();
-            let px = if color {
-                PALETTE[&0x0f]
-            } else {
-                PALETTE[&0x20]
-            };
-
-            self.canvas_main.put_pixel(x as u32, y as u32, px);
+    // Set a flag with the corresponding mask
+    fn set_flag(&mut self, register: PPURegister, flag: Byte, val: bool) {
+        // TODO Likely not all of them should be rw and treated as flags 
+        let reg = match register {
+            PPURegister::Control => &mut self.regs.ctrl,
+            PPURegister::Mask => &mut self.regs.mask,
+            PPURegister::Status => &mut self.regs.status,
+            PPURegister::OAMAddr => &mut self.regs.oam_addr,
+            PPURegister::OAMData => &mut self.regs.oam_data,
+            PPURegister::Scroll => &mut self.regs.scroll,
+            PPURegister::Addr => &mut self.regs.addr,
+            PPURegister::Data => &mut self.regs.data,
+            PPURegister::DMA => &mut self.regs.dma,
+        };
+            
+        if val {
+            *reg |= flag;
+        } else {
+            *reg &= !flag;
         }
+    }
 
-        // increment cycle/scanline
-        self.cycle += 1;
-        if self.cycle > 340 {
+
+    // PPU renders 262 scanlines with 341 clocks per line. One px per clock
+    // Scanline -1,261: Dummy scanline
+    // Scanline 0-239: Visible scanlines:
+    //      Cycle 0: idle.
+    //      Cycle 1-256: Fetch tile data
+    //      Cycle 257-320: Fetch tile data of sprites for next scanline 
+    //      Cycle 321-336: Fetch first two tiles of next scanline
+    //      Cycle 337-340: "Unknown" data fetch  
+    // Scanline 240: PPU idle
+    // Scanline 241-260: Vblack. Flag is set during second clock of 241 together
+    // with NMI 
+    pub fn clock<T: Memory>(&mut self, _mem: &mut T) {
+        if self.cycle == 340 {
             self.cycle = 0;
-            self.scanline += 1;
-            if self.scanline >= 261 {
+            if self.scanline == 261 {
                 self.scanline = 0;
                 self.frame_ready = true;
-            } 
+            } else {
+                self.scanline += 1;
+            }
+        } else {
+            self.cycle += 1;
+        };
+
+        // set/clear vblank flag
+        if self.scanline == 241 && self.cycle == 1 {
+            self.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
+
+        } else if self.scanline == 261 && self.cycle == 1 {
+            self.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, false);
         }
+        
+        // if (self.cycle < self.canvas_main.width() as u16) && 
+        //     (self.scanline < self.canvas_main.height() as u16) {
+        //     // random noise
+        //     let mut rng = rand::thread_rng();
+        //     let x = self.cycle;
+        //     let y = self.scanline;
+        
+        //     let color = rng.gen::<bool>();
+        //     let px = if color {
+        //         PALETTE[&0x0f]
+        //     } else {
+        //         PALETTE[&0x20]
+        //     };
+
+        //     self.canvas_main.put_pixel(x as u32, y as u32, px);
+        // }
+
     }
 
     // Get the correct color for the pixel from the given palette
@@ -222,10 +232,10 @@ impl PPU {
 
 impl Memory for PPU {
     fn readb(&self, addr: Addr) -> Byte {
-       // Only some of the PPU registers can actually by read
+       // Only some of the PPU regs can actually by read
        match addr {
            // PPU status 
-           0x2002 => { 0x00 },
+           0x2002 => { return self.regs.status },
            // OAM data (object attribute memory = list of 64 sprites) 
            0x2004 => { unimplemented!() },
            // ppu data 
@@ -235,23 +245,69 @@ impl Memory for PPU {
         
     }
     fn writeb(&mut self, addr: Addr, data: Byte) {
-        // Only some of the PPU registers can be written to
+        // Only some of the PPU regs can be written to
         match addr {
             // Control 
-            0x2000 => { unimplemented!() },
+            0x2000 => { self.regs.ctrl = data },
             // Mask 
-            0x2001 => { unimplemented!() },
+            0x2001 => { self.regs.mask = data },
             // OAM address
             0x2003 => { unimplemented!() },
             // OAM data
             0x2004 => { unimplemented!() },
             // Scroll
-            0x2005 => { unimplemented!() },
+            0x2005 => { self.regs.scroll = data },
             // Address
-            0x2006 => { unimplemented!() }, 
+            0x2006 => { self.regs.addr = data }, 
             // ppu data
-            0x2007 => { unimplemented!() },
-            _ => { } 
+            0x2007 => { self.regs.data = data },
+            _ => { unreachable!() } 
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_set_flags() {
+        let mut ppu = PPU::new();
+
+        // set unset flag
+        assert_eq!(ppu.regs.status, 0b00000000);
+        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status);
+        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, false);
+        assert_eq!(ppu.regs.status, 0b00000000,
+            "register={:#010b}; should be 0b00000000", ppu.regs.status);
+
+
+        // set same flag twice
+        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status);
+        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status);
+
+
+        // set other flag
+        ppu.set_flag(PPURegister::Status, STATUS_SPRITE_ZERO_HIT, true);
+        assert_eq!(ppu.regs.status, 0b11000000,
+            "register={:#010b}; should be 0b11000000", ppu.regs.status);
+
+        ppu.set_flag(PPURegister::Status, STATUS_SPRITE_ZERO_HIT, false);
+        assert_eq!(ppu.regs.status, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status);
+
+
+        // set other register
+        ppu.set_flag(PPURegister::Mask, MASK_GRAYSCALE, true);
+        assert_eq!(ppu.regs.status, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status);
+        assert_eq!(ppu.regs.mask, 0b0000001,
+            "register={:#010b}; should be 0b0000001", ppu.regs.status);
     }
 }

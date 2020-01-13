@@ -187,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_cartridge_new() {
-       let path = Path::new("test_roms/registers.nes");
+       let path = Path::new("test_roms/nestest.nes");
        Cartridge::new(&path).unwrap();
     }
 

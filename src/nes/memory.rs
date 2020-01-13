@@ -109,3 +109,13 @@ pub trait PPUMemory {
         self.writeb_ppu(addr + 1, (data >> 8) as Byte);
     }
 }
+
+pub trait PPUMemoryReader {
+    fn readb_ppu<T: PPUMemory>(&self, mem: &T, addr: Addr) -> Byte {
+        mem.readb_ppu(addr)
+    }
+
+    fn writeb_ppu<T: PPUMemory>(&mut self, mem: &mut T, addr: Addr, data: Byte) {
+        mem.writeb_ppu(addr, data)
+    } 
+}

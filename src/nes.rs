@@ -65,6 +65,9 @@ impl NES {
             self.cpu.clock(&mut self.memory);
         }
         self.ppu.borrow_mut().clock(&mut self.memory);
+        if self.clock_count % 100000 == 0 {
+            info!("clock {}", self.clock_count);
+        }
     }
 
 
@@ -86,8 +89,17 @@ impl NES {
             self.clock();
         }
         self.ppu.borrow_mut().frame_ready = false;
-        info!("clock {}", self.clock_count);
     }
+
+    // clock until the next scanline is done
+    pub fn clock_scanline(&mut self) {
+        let current_line = self.ppu.borrow().scanline;
+        while self.ppu.borrow().scanline == current_line {
+            self.clock();
+        }
+    }
+
+    
 }
 
 
