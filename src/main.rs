@@ -1,6 +1,7 @@
 #[macro_use] extern crate log;
 #[macro_use] extern crate failure;
 #[macro_use] extern crate lazy_static;
+#[macro_use] extern crate bitflags;
 extern crate image;
 extern crate simple_logger;
 extern crate phf;
@@ -36,7 +37,7 @@ lazy_static! {
 }
 
 fn main() -> Result<(), Error> {
-    simple_logger::init_with_level(Level::Info).unwrap();
+    simple_logger::init_with_level(Level::Debug).unwrap();
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         bail!("No cartridge supplied. Usage: ./jane cartridge.nes");
@@ -172,7 +173,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
         });
 
         position.0 += 70.0;
-        let color = if cpu.get_flag(NEGATIVE) == 1 { FT_COLOR_GREEN } else { FT_COLOR_RED };
+        let color = if cpu.is_flag_set(Flags::NEGATIVE) { FT_COLOR_GREEN } else { FT_COLOR_RED };
         glyphs.queue(Section {
                 text: "N",
                 scale: *FT_SCALE,
@@ -181,7 +182,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 ..Section::default()
             });
         position.0 += 16.0;
-        let color = if cpu.get_flag(OVERFLOW) == 1 { FT_COLOR_GREEN } else { FT_COLOR_RED };
+        let color = if cpu.is_flag_set(Flags::OVERFLOW) { FT_COLOR_GREEN } else { FT_COLOR_RED };
         glyphs.queue(Section {
                 text: "V",
                 scale: *FT_SCALE,
@@ -199,7 +200,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 ..Section::default()
             });
         position.0 += 16.0;
-        let color = if cpu.get_flag(BREAK) == 1 { FT_COLOR_GREEN } else { FT_COLOR_RED };
+        let color = if cpu.is_flag_set(Flags::BREAK) { FT_COLOR_GREEN } else { FT_COLOR_RED };
         glyphs.queue(Section {
                 text: "B",
                 scale: *FT_SCALE,
@@ -208,7 +209,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 ..Section::default()
             });
         position.0 += 16.0;
-        let color = if cpu.get_flag(DECIMAL) == 1 { FT_COLOR_GREEN } else { FT_COLOR_RED };
+        let color = if cpu.is_flag_set(Flags::DECIMAL) { FT_COLOR_GREEN } else { FT_COLOR_RED };
         glyphs.queue(Section {
                 text: "D",
                 scale: *FT_SCALE,
@@ -217,7 +218,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 ..Section::default()
             });
         position.0 += 16.0;
-        let color = if cpu.get_flag(IRQ) == 1 { FT_COLOR_GREEN } else { FT_COLOR_RED };
+        let color = if cpu.is_flag_set(Flags::IRQ) { FT_COLOR_GREEN } else { FT_COLOR_RED };
         glyphs.queue(Section {
                 text: "I",
                 scale: *FT_SCALE,
@@ -226,7 +227,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 ..Section::default()
             });
         position.0 += 16.0;
-        let color = if cpu.get_flag(ZERO) == 1 { FT_COLOR_GREEN } else { FT_COLOR_RED };
+        let color = if cpu.is_flag_set(Flags::ZERO) { FT_COLOR_GREEN } else { FT_COLOR_RED };
         glyphs.queue(Section {
                 text: "Z",
                 scale: *FT_SCALE,
@@ -235,7 +236,7 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 ..Section::default()
             });
         position.0 += 16.0;
-        let color = if cpu.get_flag(CARRY) == 1 { FT_COLOR_GREEN } else { FT_COLOR_RED };
+        let color = if cpu.is_flag_set(Flags::CARRY) { FT_COLOR_GREEN } else { FT_COLOR_RED };
         glyphs.queue(Section {
                 text: "C",
                 scale: *FT_SCALE,

@@ -13,15 +13,19 @@ pub const STACK_BASE_ADDR: Addr = 0x0100;
 pub const LO: Addr  = 0x00FF;
 pub const HI: Addr  = 0xFF00;
 
-// CPU flags 
-pub const CARRY: Byte = 1 << 0;    // 0000 0001 0x01
-pub const ZERO: Byte = 1 << 1;     // 0000 0010 0x02
-pub const IRQ: Byte = 1 << 2;      // 0000 0100 0x04
-pub const DECIMAL: Byte = 1 << 3;  // 0000 1000 0x08
-pub const BREAK: Byte = 1 << 4;    // 0001 0000 0x10
-pub const UNUSED: Byte = 1 << 5;   // 0010 0000 0x20
-pub const OVERFLOW: Byte = 1 << 6; // 0100 0000 0x40
-pub const NEGATIVE: Byte = 1 << 7; // 1000 0000 0x80
+// CPU status register flags
+bitflags! {
+    pub struct Flags: Byte {
+        const CARRY = 1 << 0;    // 0000 0001 0x01
+        const ZERO = 1 << 1;     // 0000 0010 0x02
+        const IRQ = 1 << 2;      // 0000 0100 0x04
+        const DECIMAL = 1 << 3;  // 0000 1000 0x08
+        const BREAK = 1 << 4;    // 0001 0000 0x10
+        const UNUSED = 1 << 5;   // 0010 0000 0x20
+        const OVERFLOW = 1 << 6; // 0100 0000 0x40
+        const NEGATIVE = 1 << 7; // 1000 0000 0x80
+    }
+}
 
 // The NES CPU registers
 pub struct Registers {
@@ -30,7 +34,7 @@ pub struct Registers {
     pub y: Byte,
     pub sp: Byte,
     pub pc: Addr,
-    pub flags: Byte 
+    pub flags: Flags 
 }
 
 impl Registers {
@@ -41,7 +45,7 @@ impl Registers {
             y: 0,
             sp: 0x00FD,
             pc: 0x0000,
-            flags: 0x24,
+            flags: Flags::from_bits(0x24).unwrap(),
         }
     }
 }
@@ -49,7 +53,7 @@ impl Registers {
 impl Debug for Registers {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{{ a: {:#x}, x: {:#x}, y: {:#x}, sp: {:#x}, pc: {:#x}, flags: {:#010b} }}",
-            self.a, self.x, self.y, self.sp, self.pc, self.flags)
+            self.a, self.x, self.y, self.sp, self.pc, self.flags.bits)
     } 
 }
 
@@ -111,7 +115,7 @@ impl CPU {
     pub fn reset<T: Memory>(&mut self, mem: &T) {
         // reset registers
         self.regs.sp = self.regs.sp - 3;
-        self.set_flag(IRQ, true);
+        self.set_flag(Flags::IRQ, true);
 
         self.find_pc_addr(mem);
 
@@ -155,7 +159,7 @@ impl CPU {
     }
 
     // Set the flag with the corresponding mask
-    fn set_flag(&mut self, flag: Byte, val: bool) {
+    fn set_flag(&mut self, flag: Flags, val: bool) {
         if val {
             self.regs.flags |= flag;
         } else {
@@ -164,16 +168,20 @@ impl CPU {
     }
 
     fn set_flag_nz(&mut self, val: Byte) {
-        self.set_flag(ZERO, val == 0);
-        self.set_flag(NEGATIVE, (val & NEGATIVE) > 0);
+        self.set_flag(Flags::ZERO, val == 0);
+        self.set_flag(Flags::NEGATIVE, (val & Flags::NEGATIVE.bits) > 0);
     }
 
-    pub fn get_flag(&self, flag: Byte) -> Byte {
-        if self.regs.flags & flag > 0 {
+    pub fn get_flag(&self, flag: Flags) -> Byte {
+        if self.is_flag_set(flag) {
             1
         } else {
             0
         }
+    }
+
+    pub fn is_flag_set(&self, flag: Flags) -> bool {
+        self.regs.flags.contains(flag)
     }
 
     // Jump to address
@@ -412,9 +420,9 @@ impl CPU {
     // Negative bit is set
     fn op_ADC<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
         let val = self.readb(mem, addr) as Word;
-        let tmp = self.regs.a as Word + val + self.get_flag(CARRY) as Word;
+        let tmp = self.regs.a as Word + val + self.get_flag(Flags::CARRY) as Word;
 
-        self.set_flag(CARRY, tmp > 255);
+        self.set_flag(Flags::CARRY, tmp > 255);
         self.set_flag_nz(tmp as Byte);
         
         // There are two cases where the overflow bit should be set. if we look
@@ -422,7 +430,7 @@ impl CPU {
         // expression selects for both of them
         let is_overflown = (!(self.regs.a as Word ^ val) &
             (self.regs.a as Word ^ tmp)) & 0x0080 != 0;
-        self.set_flag(OVERFLOW, is_overflown);
+        self.set_flag(Flags::OVERFLOW, is_overflown);
         
         self.regs.a = tmp as Byte; 
         true
@@ -459,7 +467,7 @@ impl CPU {
             self.readb(mem, addr)
         };
         let shifted = (val << 1) as Byte;
-        self.set_flag(CARRY, (val & 0b10000000) > 0);
+        self.set_flag(Flags::CARRY, (val & 0b10000000) > 0);
 
         if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
@@ -476,7 +484,7 @@ impl CPU {
     // If the carry flag is clear then add the relative displacement to
     // the program counter to cause a branch to a new location.
     fn op_BCC(&mut self, addr: Addr) -> bool {
-        if self.get_flag(CARRY) == 0 {
+        if !self.is_flag_set(Flags::CARRY) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -488,7 +496,7 @@ impl CPU {
     // If the carry flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn op_BCS(&mut self, addr: Addr) -> bool {
-        if self.get_flag(CARRY) == 1 {
+        if self.is_flag_set(Flags::CARRY) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -500,7 +508,7 @@ impl CPU {
     // If the zero flag is set then add the relative displacement to
     // the program counter to cause a branch to a new location.
     fn op_BEQ(&mut self, addr: Addr) -> bool {
-        if self.get_flag(ZERO) == 1 {
+        if self.is_flag_set(Flags::ZERO) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -514,9 +522,9 @@ impl CPU {
     // the zeroflag is set to the result of operand AND accumulator.
     fn op_BIT<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
         let val = self.readb(mem, addr);
-        self.set_flag(OVERFLOW, (val & OVERFLOW) > 1);
-        self.set_flag(NEGATIVE, (val & NEGATIVE) > 1);
-        self.set_flag(ZERO, (val & self.regs.a) == 0);
+        self.set_flag(Flags::OVERFLOW, (val & Flags::OVERFLOW.bits) > 1);
+        self.set_flag(Flags::NEGATIVE, (val & Flags::NEGATIVE.bits) > 1);
+        self.set_flag(Flags::ZERO, (val & self.regs.a) == 0);
         false
     }
 
@@ -524,7 +532,7 @@ impl CPU {
     // If the negative flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn op_BMI(&mut self, addr: Addr) -> bool {
-        if self.get_flag(NEGATIVE) == 1 {
+        if self.is_flag_set(Flags::NEGATIVE) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -536,7 +544,7 @@ impl CPU {
     // If the zero flag is clear then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn op_BNE(&mut self, addr: Addr) -> bool {
-        if self.get_flag(ZERO) == 0 {
+        if !self.is_flag_set(Flags::ZERO) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -548,7 +556,7 @@ impl CPU {
     // If the negative flag is clear then add the relative displacement to
     // the program counter to cause a branch to a new location.
     fn op_BPL(&mut self, addr: Addr) -> bool {
-        if self.get_flag(NEGATIVE) == 0 {
+        if !self.is_flag_set(Flags::NEGATIVE) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -563,16 +571,16 @@ impl CPU {
     // the break flag in the status set to one.
     fn op_BRK<T: Memory>(&mut self, mem: &mut T) -> bool {
         self.regs.pc += 1;
-        self.set_flag(IRQ, true);
+        self.set_flag(Flags::IRQ, true);
 
         // Push pc to stack
         self.pushb_sp(mem, (self.regs.pc >> 8) as Byte);
         self.pushb_sp(mem, self.regs.pc as Byte);
         
         // Push flags to stack
-        self.set_flag(BREAK, true);
-        self.pushb_sp(mem, self.regs.flags);
-        self.set_flag(BREAK, false);
+        self.set_flag(Flags::BREAK, true);
+        self.pushb_sp(mem, self.regs.flags.bits);
+        self.set_flag(Flags::BREAK, false);
 
         // set PC to IRQ vector
         self.regs.pc = self.readw(mem, 0xFFFE);
@@ -583,7 +591,7 @@ impl CPU {
     // If the overflow flag is clear then add the relative displacement to
     // the program counter to cause a branch to a new location.
     fn op_BVC(&mut self, addr: Addr) -> bool {
-        if self.get_flag(OVERFLOW) == 0 {
+        if !self.is_flag_set(Flags::OVERFLOW) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -595,7 +603,7 @@ impl CPU {
     // If the overflow flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn op_BVS(&mut self, addr: Addr) -> bool {
-        if self.get_flag(OVERFLOW) == 1 {
+        if self.is_flag_set(Flags::OVERFLOW) {
             self.jump(addr);
             self.cycles_ahead += 1;
             return true
@@ -605,26 +613,26 @@ impl CPU {
 
     // Clear carry flag
     fn op_CLC(&mut self) -> bool {
-        self.set_flag(CARRY, false);
+        self.set_flag(Flags::CARRY, false);
         false
     }
    
     // clear decimal flag
     fn op_CLD(&mut self) -> bool {
-        self.set_flag(DECIMAL, false);
+        self.set_flag(Flags::DECIMAL, false);
         false
     }
 
 
     // clear IRQ
     fn op_CLI(&mut self) -> bool {
-        self.set_flag(IRQ, false);
+        self.set_flag(Flags::IRQ, false);
         false
     }
 
     // clear Overflow
     fn op_CLV(&mut self) -> bool {
-        self.set_flag(OVERFLOW, false);
+        self.set_flag(Flags::OVERFLOW, false);
         false
     }
 
@@ -636,7 +644,7 @@ impl CPU {
         let val = self.readb(mem, addr);
         let tmp = (self.regs.a as Word).wrapping_sub(val as Word);
 
-        self.set_flag(CARRY, self.regs.a >= val);
+        self.set_flag(Flags::CARRY, self.regs.a >= val);
         self.set_flag_nz(tmp as Byte);
         true
     }
@@ -646,7 +654,7 @@ impl CPU {
         let val = self.readb(mem, addr);
         let tmp = (self.regs.x as Word).wrapping_sub(val as Word);
 
-        self.set_flag(CARRY, self.regs.x >= val);
+        self.set_flag(Flags::CARRY, self.regs.x >= val);
         self.set_flag_nz(tmp as Byte);
         true
     }
@@ -656,7 +664,7 @@ impl CPU {
         let val = self.readb(mem, addr);
         let tmp = (self.regs.y as Word).wrapping_sub(val as Word);
 
-        self.set_flag(CARRY, self.regs.y >= val);
+        self.set_flag(Flags::CARRY, self.regs.y >= val);
         self.set_flag_nz(tmp as Byte);
         true
     }
@@ -826,7 +834,7 @@ impl CPU {
             self.readb(mem, addr) as Word
         };
 
-        self.set_flag(CARRY, (val & 0b00000001) != 0);
+        self.set_flag(Flags::CARRY, (val & 0b00000001) != 0);
         let shifted = (val >> 1) as Byte;
         self.set_flag_nz(shifted);
 
@@ -866,9 +874,9 @@ impl CPU {
     // PHP - Push Processor Status
     // Pushes a copy of the status flags on to the stack.
     fn op_PHP<T: Memory>(&mut self, mem: &mut T) -> bool {
-        let tmp = self.regs.flags | BREAK;
-        self.pushb_sp(mem, tmp);
-        self.set_flag(BREAK, false);
+        let tmp = self.regs.flags | Flags::BREAK;
+        self.pushb_sp(mem, tmp.bits);
+        self.set_flag(Flags::BREAK, false);
         false
     }
 
@@ -883,11 +891,11 @@ impl CPU {
     // Pulls an 8 bit value from the stack and into the processor flags. The
     // flags will take on new states as determined by the value pulled.
     fn op_PLP<T: Memory>(&mut self, mem: &T) -> bool {
-        self.regs.flags = self.popb_sp(mem);
+        self.regs.flags = Flags::from_bits(self.popb_sp(mem)).unwrap();
 
         // Im not sure why this is set to false and stack value is not used
         // but that's how the nestest.log shows it..
-        self.set_flag(BREAK, false);  
+        self.set_flag(Flags::BREAK, false);  
         false
     }
 
@@ -902,9 +910,9 @@ impl CPU {
         } else {
             self.readb(mem, addr) as Word
         };
-        let shifted = (val << 1) as Byte | self.get_flag(CARRY);
+        let shifted = (val << 1) as Byte | self.get_flag(Flags::CARRY);
         
-        self.set_flag(CARRY, (val & 0b10000000) > 0);
+        self.set_flag(Flags::CARRY, (val & 0b10000000) > 0);
         self.set_flag_nz(shifted);
 
         if *addr_mode == AddrMode::IMP {
@@ -942,9 +950,9 @@ impl CPU {
             self.readb(mem, addr) as Word
         };
 
-        let shifted = (val >> 1) as Byte | (self.get_flag(CARRY) << 7);
+        let shifted = (val >> 1) as Byte | (self.get_flag(Flags::CARRY) << 7);
         
-        self.set_flag(CARRY, (val & 0b00000001) > 0);
+        self.set_flag(Flags::CARRY, (val & 0b00000001) > 0);
         self.set_flag_nz(shifted);
 
         if *addr_mode == AddrMode::IMP {
@@ -960,8 +968,8 @@ impl CPU {
     // routine. It pulls the processor flags from the stack followed by the
     // program counter.
     fn op_RTI<T: Memory>(&mut self, mem: &T) -> bool {
-        self.regs.flags = self.popb_sp(mem);
-        self.regs.flags &= !BREAK;
+        self.regs.flags = Flags::from_bits(self.popb_sp(mem)).unwrap();
+        self.regs.flags &= !Flags::BREAK;
         
         let pc_lo = self.popb_sp(mem) as Word;
         let pc_hi = self.popb_sp(mem) as Word;
@@ -1003,9 +1011,9 @@ impl CPU {
         let val = val ^ LO;
 
         // Now it's similar to ADC
-        let tmp = self.regs.a as Word + val + self.get_flag(CARRY) as Word;
+        let tmp = self.regs.a as Word + val + self.get_flag(Flags::CARRY) as Word;
 
-        self.set_flag(CARRY, tmp > 255);
+        self.set_flag(Flags::CARRY, tmp > 255);
         self.set_flag_nz(tmp as Byte);
         
         // There are two cases where the overflow bit should be set. if we look
@@ -1013,7 +1021,7 @@ impl CPU {
         // expression selects for both of them
         let is_overflown = (!(self.regs.a as Word ^ val) &
             (self.regs.a as Word ^ tmp)) & 0x0080 != 0;
-        self.set_flag(OVERFLOW, is_overflown);
+        self.set_flag(Flags::OVERFLOW, is_overflown);
         
         self.regs.a = tmp as Byte; 
         true
@@ -1021,7 +1029,7 @@ impl CPU {
 
     // set carry
     fn op_SEC(&mut self) -> bool {
-        self.set_flag(CARRY, true);
+        self.set_flag(Flags::CARRY, true);
         false
     }
 
@@ -1029,13 +1037,13 @@ impl CPU {
     // D = 1
     // Set the decimal mode flag to one.
     fn op_SED(&mut self) -> bool {
-        self.set_flag(DECIMAL, true);
+        self.set_flag(Flags::DECIMAL, true);
         false
     }
 
     // set irq flag
     fn op_SEI(&mut self) -> bool {
-        self.set_flag(IRQ, true);
+        self.set_flag(Flags::IRQ, true);
         false
     }
 
