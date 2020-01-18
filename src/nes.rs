@@ -111,35 +111,3 @@ impl NES {
 
     
 }
-
-
-// impl PPUMemory for NES {
-//     fn readb_ppu(&self, addr: Addr) -> Byte {
-//         if let Some(cartridge) = &self.cartridge {
-//             if CART_ADDR_RANGE[0] <= addr && addr <= CART_ADDR_RANGE[1] {
-//                 return cartridge.readb(addr)
-//             } 
-//         }
-
-//         if RAM_ADDR_RANGE[0] <= addr && addr <= RAM_ADDR_RANGE[1] {
-//             // Ram is 3x mirrored after 07ff
-//             return self.ram[(addr & RAM_PHYS_RANGE[1]) as usize]
-//         }
-//         0x0000  // generic response
-//     }
-
-//     fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
-//         if let Some(cartridge) = &mut self.cartridge {
-//             if CART_ADDR_RANGE[0] <= addr && addr <= CART_ADDR_RANGE[1] {
-//                 cartridge.writeb(addr, data)
-//             } 
-//         }
-
-//         if RAM_ADDR_RANGE[0] <= addr && addr <= RAM_ADDR_RANGE[1] {
-//             // Ram is 3x mirrored after 07ff
-//             self.ram[(addr & RAM_PHYS_RANGE[1]) as usize] = data
-//         }
-//     }
-// }
-
-
