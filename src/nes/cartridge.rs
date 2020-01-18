@@ -1,5 +1,4 @@
 use crate::nes::mappers::*;
-use crate::nes::Memory;
 use failure::Error;
 use std::io::prelude::*;
 use std::fs::File;
@@ -102,19 +101,36 @@ impl Cartridge {
             mapper: Box::new(Mapper0::new(1, 1))
         }
     }
-}
 
-impl Memory for Cartridge {
-    fn readb(&self, addr: Addr) -> Byte {
-        let mapped_addr = self.mapper.map_read_addr(addr);
-        self.prg_rom[mapped_addr as usize]
+    pub fn readb(&self, addr: Addr) -> Option<Byte> {
+        if let Some(mapped_addr) = self.mapper.map_read_addr(addr) {
+            return Some(self.prg_rom[mapped_addr as usize])
+        }
+        None
     }
 
-    fn writeb(&mut self, addr: Addr, data: Byte) {
-        let mapped_addr = self.mapper.map_write_addr(addr);
-        self.prg_rom[mapped_addr as usize] = data;
+    pub fn writeb(&mut self, addr: Addr, data: Byte) -> bool {
+        if let Some(mapped_addr) = self.mapper.map_write_addr(addr) {
+            self.prg_rom[mapped_addr as usize] = data;
+            return true
+        }
+        false
+    }
+
+    // Read from cartridge if the cartridge has readable VRAM/VROM
+    pub fn readb_ppu(&self, addr: Addr) -> Option<Byte> {
+        // TODO
+        None
+    }
+
+    // Let the cartridge handle the ppu write. Returns true if cartridge
+    // handled the write, false otherwise
+    pub fn writeb_ppu(&mut self, addr: Addr, data: Byte) -> bool {
+        // TODO
+        false
     }
 }
+
 
 
 #[cfg(test)]

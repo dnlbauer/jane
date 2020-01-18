@@ -35,6 +35,13 @@ impl PPUBus {
 
 impl PPUMemory for PPUBus {
     fn readb_ppu(&self, addr: Addr) -> Byte {
+        // give the cartridge a chance to handle it
+        if let Some(cartridge) = &self.cartridge {
+            if let Some(data) = cartridge.borrow().readb_ppu(addr) {
+                return data
+            }
+        }
+
         if PATTERN_ADDR_RANGE[0] <= addr && addr <= PATTERN_ADDR_RANGE[1] {
             let table = if addr < 0x1000 { 0 } else { 1 };
             return self.pattern_memory[table as usize][(addr % 0x1000) as usize]
@@ -60,6 +67,13 @@ impl PPUMemory for PPUBus {
         0x00
     }
     fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
+        // give the cartridge a chance to handle it
+        if let Some(cartridge) = &self.cartridge {
+            if cartridge.borrow_mut().writeb_ppu(addr, data) {
+                return
+            }
+        }
+
         if PATTERN_ADDR_RANGE[0] <= addr && addr <= PATTERN_ADDR_RANGE[1] {
             let table = if addr < 0x1000 { 0 } else { 1 };
             self.pattern_memory[table as usize][(addr % 0x1000) as usize] = data;

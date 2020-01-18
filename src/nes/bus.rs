@@ -53,7 +53,7 @@ impl Memory for Bus {
     fn readb(&self, addr: Addr) -> Byte {
         if let Some(cartridge) = &self.cartridge {
             if CART_ADDR_RANGE[0] <= addr && addr <= CART_ADDR_RANGE[1] {
-                return cartridge.borrow().readb(addr)
+                return cartridge.borrow().readb(addr).unwrap()  // does not fail.
             } 
         }
         if RAM_ADDR_RANGE[0] <= addr && addr <= RAM_ADDR_RANGE[1] {
@@ -71,7 +71,7 @@ impl Memory for Bus {
     fn writeb(&mut self, addr: Addr, data: Byte) {
         if let Some(cartridge) = &mut self.cartridge {
             if CART_ADDR_RANGE[0] <= addr && addr <= CART_ADDR_RANGE[1] {
-                cartridge.borrow_mut().writeb(addr, data)
+                cartridge.borrow_mut().writeb(addr, data);
             } 
         }
         if RAM_ADDR_RANGE[0] <= addr && addr <= RAM_ADDR_RANGE[1] {

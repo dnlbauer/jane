@@ -1,8 +1,8 @@
 use crate::nes::types::*;
 
 pub trait Mapper {
-    fn map_read_addr(&self, addr: Addr) -> Addr;
-    fn map_write_addr(&self, addr: Addr) -> Addr;
+    fn map_read_addr(&self, addr: Addr) -> Option<Addr>;
+    fn map_write_addr(&self, addr: Addr) -> Option<Addr>;
 }
 
 // Mapper 0
@@ -29,24 +29,24 @@ impl Mapper0 {
 }
 
 impl Mapper for Mapper0 {
-    fn map_read_addr(&self, addr: Addr) -> Addr {
+    fn map_read_addr(&self, addr: Addr) -> Option<Addr> {
         if 0x8000 <= addr && addr <= 0xFFFF { 
             if self.prg_banks > 1 {
-                return addr & 0x7fff;
+                return Some(addr & 0x7fff);
             } else {
-                return addr & 0x3fff;
+                return Some(addr & 0x3fff);
             }
         }
-        0x0000
+        None
     }
-    fn map_write_addr(&self, addr: Addr) -> Addr {
+    fn map_write_addr(&self, addr: Addr) -> Option<Addr> {
         if 0x8000 <= addr && addr <= 0xFFFF { 
             if self.prg_banks > 1 {
-                return addr & 0x7fff;
+                return Some(addr & 0x7fff);
             } else {
-                return addr & 0x3fff;
+                return Some(addr & 0x3fff);
             }
         }
-        0x0000
+        None
     }
 }
