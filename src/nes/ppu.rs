@@ -1,4 +1,4 @@
-use crate::nes::memory::PPUMemory;
+use crate::nes::ppubus::PPUMemory;
 use crate::nes::types::*;
 use image::{ImageBuffer, Rgba};
 use palette::PALETTE;

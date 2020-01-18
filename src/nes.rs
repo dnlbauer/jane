@@ -4,16 +4,20 @@ pub use crate::nes::cartridge::Cartridge;
 pub use crate::nes::ppu::PPU;
 pub use crate::nes::cpu::CPU;
 pub use crate::nes::types::*;
-pub use crate::nes::memory::*;
+pub use crate::nes::bus::*;
+pub use crate::nes::ppubus::*;
+
 
 #[allow(non_snake_case)]
 pub mod cpu;
-pub mod memory;
+pub mod bus;
 pub mod types;
 pub mod disasm;
 pub mod cartridge;
 pub mod mappers;
 pub mod ppu;
+pub mod ppubus;
+
 
 // The NES class connects all elements of the NES together. It acts
 // as the mediator between the different components and hold the RAM 
