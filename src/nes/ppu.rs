@@ -102,6 +102,7 @@ pub struct PPU {
     pattern_table: [Sprite; 2],
     pub frame_ready: bool,
     addr_latch_set: bool,
+    data_buffer: Byte,
 }
 
 // impl PPUMemoryReader for PPU {}
@@ -116,6 +117,7 @@ impl PPU {
             pattern_table: [ImageBuffer::new(128, 128), ImageBuffer::new(128, 128)],
             frame_ready: false,
             addr_latch_set: false,
+            data_buffer: 0
         }
     }
 
@@ -183,19 +185,39 @@ impl PPU {
     }
 
     // CPU can write certain registers of the PPU through the bus
-    pub fn readb(&self, addr: Addr) -> Byte {
+    pub fn readb(&mut self, addr: Addr) -> Byte {
        // Only certain registers of the PPU can actually by read
        // remaining registers and read attemps will return garbage
         match addr {
             // status
-            0x2002 => { self.regs.status.bits },
+            0x2002 => {
+                let status = self.regs.status.bits();
+                // Reading the status register also clears VBLANK and the
+                // address latch
+                self.set_status(Status::VERTICAL_BLANK, false);
+                self.addr_latch_set = false;
+                status
+            },
             // oam data 
-            0x2004 => { unimplemented!() },
+            0x2004 => { /* TODO */ 0x00 },
             // ppu data
-            0x2007 => { unimplemented!() },
-            _ => 0x00,  // unmapped reads                       
+            0x2007 => { 
+                // ppu reads are delayed by one clock. Therefore, this uses
+                // a buffer variable to return the data from the previous
+                // read, and then set the new data to the buffer. However,
+                // because the PPU is weird, this does not apply for the 
+                // palette memory
+                let data = self.data_buffer;
+                self.data_buffer = self.readb_ppu(addr);
+
+                if addr > 0x3F00 {  // everything above 0x3F00 is palette
+                   self.data_buffer 
+                } else {
+                    data
+                }
+            },
+            _ => 0x00,  // unmapped reads                      
         } 
-        
     }
 
     // CPU can write certain registers of the PPU through the bus
@@ -203,19 +225,25 @@ impl PPU {
         // Only some of the PPU regs can be written to
         match addr {
             // Control 
-            0x2000 => { self.regs.ctrl = Control::from_bits(data).unwrap() },
+            0x2000 => { 
+                self.regs.ctrl = Control::from_bits(data).unwrap()
+            },
             // Mask 
-            0x2001 => { self.regs.mask = Mask::from_bits(data).unwrap() },
+            0x2001 => {
+                self.regs.mask = Mask::from_bits(data).unwrap()
+            },
             // OAM address
-            0x2003 => { unreachable!() },
+            0x2003 => { /* TODO */ },
             // OAM data
-            0x2004 => { unreachable!() },
+            0x2004 => { /* TODO */ },
             // Scroll
-            0x2005 => { unimplemented!() },
+            0x2005 => { /* TODO */ },
             // Addr
-            // To write a 16bit addr to the ppu, two consecutive writes are 
-            // required to set the hi and lo byte, respectively
-            0x2006 => {  
+            0x2006 => {
+                // To write a 16bit addr to the ppu, two consecutive writes are 
+                // required to set the hi and lo byte of the address.
+                // addr_latch_set indicates wether the hi byte is already
+                // set or not
                 if !self.addr_latch_set {
                     self.regs.addr = self.regs.addr & 0x00FF | (data as Word) << 8;
                 } else {
@@ -226,13 +254,13 @@ impl PPU {
             // write data to the ppu addr bus
             0x2007 => {
                 self.writeb_ppu(self.regs.addr, data);
-                // after write, increment vram addr for further writes.
+                // after write, increment vram addr for next write.
                 // The increment value is determined by the vertical mode
                 // flag of the status reg 0: +1, 1: +32
-                if self.get_control(Control::INCREMENT_MODE) {
-                    self.regs.addr += 32; 
+                self.regs.addr += if self.get_control(Control::INCREMENT_MODE) {
+                    32 
                 } else {
-                    self.regs.addr += 1;
+                    1
                 }
             },
             _ => { } // unwriteable addr, do nothing
@@ -305,40 +333,40 @@ mod tests {
         let mut ppu = PPU::new();
 
         // set unset flag
-        assert_eq!(ppu.regs.status.bits, 0b00000000);
-        ppu.set_status(VERTICAL_BLANK, true);
-        assert_eq!(ppu.regs.status.bits, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
-        ppu.set_status(VERTICAL_BLANK, false);
-        assert_eq!(ppu.regs.status.bits, 0b00000000,
-            "register={:#010b}; should be 0b00000000", ppu.regs.status.bits);
+        assert_eq!(ppu.regs.status.bits(), 0b00000000);
+        ppu.set_status(Status::VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status.bits(), 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits());
+        ppu.set_status(Status::VERTICAL_BLANK, false);
+        assert_eq!(ppu.regs.status.bits(), 0b00000000,
+            "register={:#010b}; should be 0b00000000", ppu.regs.status.bits());
 
 
         // set same flag twice
-        ppu.set_status(VERTICAL_BLANK, true);
-        assert_eq!(ppu.regs.status.bits, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
-        ppu.set_status(VERTICAL_BLANK, true);
-        assert_eq!(ppu.regs.status.bits, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
+        ppu.set_status(Status::VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status.bits(), 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits());
+        ppu.set_status(Status::VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status.bits(), 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits());
 
 
         // set other flag
-        ppu.set_status(SPRITE_ZERO_HIT, true);
-        assert_eq!(ppu.regs.status.bits, 0b11000000,
-            "register={:#010b}; should be 0b11000000", ppu.regs.status.bits);
+        ppu.set_status(Status::SPRITE_ZERO_HIT, true);
+        assert_eq!(ppu.regs.status.bits(), 0b11000000,
+            "register={:#010b}; should be 0b11000000", ppu.regs.status.bits());
 
-        ppu.set_status(SPRITE_ZERO_HIT, false);
-        assert_eq!(ppu.regs.status.bits, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
+        ppu.set_status(Status::SPRITE_ZERO_HIT, false);
+        assert_eq!(ppu.regs.status.bits(), 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits());
 
 
         // set other register
         ppu.set_control(Control::INCREMENT_MODE, true);
-        assert_eq!(ppu.regs.status.bits, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
-        assert_eq!(ppu.regs.control.bits, 0b0000100,
-            "register={:#010b}; should be 0b0000001", ppu.regs.control.bits);
+        assert_eq!(ppu.regs.status.bits(), 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits());
+        assert_eq!(ppu.regs.ctrl.bits(), 0b0000100,
+            "register={:#010b}; should be 0b0000001", ppu.regs.ctrl.bits());
     }
 
     #[test]

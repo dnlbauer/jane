@@ -53,7 +53,7 @@ impl Registers {
 impl Debug for Registers {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{{ a: {:#x}, x: {:#x}, y: {:#x}, sp: {:#x}, pc: {:#x}, flags: {:#010b} }}",
-            self.a, self.x, self.y, self.sp, self.pc, self.flags.bits)
+            self.a, self.x, self.y, self.sp, self.pc, self.flags.bits())
     } 
 }
 
@@ -169,7 +169,7 @@ impl CPU {
 
     fn set_flag_nz(&mut self, val: Byte) {
         self.set_flag(Flags::ZERO, val == 0);
-        self.set_flag(Flags::NEGATIVE, (val & Flags::NEGATIVE.bits) > 0);
+        self.set_flag(Flags::NEGATIVE, (val & Flags::NEGATIVE.bits()) > 0);
     }
 
     pub fn get_flag(&self, flag: Flags) -> Byte {
@@ -522,8 +522,8 @@ impl CPU {
     // the zeroflag is set to the result of operand AND accumulator.
     fn op_BIT<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
         let val = self.readb(mem, addr);
-        self.set_flag(Flags::OVERFLOW, (val & Flags::OVERFLOW.bits) > 1);
-        self.set_flag(Flags::NEGATIVE, (val & Flags::NEGATIVE.bits) > 1);
+        self.set_flag(Flags::OVERFLOW, (val & Flags::OVERFLOW.bits()) > 1);
+        self.set_flag(Flags::NEGATIVE, (val & Flags::NEGATIVE.bits()) > 1);
         self.set_flag(Flags::ZERO, (val & self.regs.a) == 0);
         false
     }
@@ -579,7 +579,7 @@ impl CPU {
         
         // Push flags to stack
         self.set_flag(Flags::BREAK, true);
-        self.pushb_sp(mem, self.regs.flags.bits);
+        self.pushb_sp(mem, self.regs.flags.bits());
         self.set_flag(Flags::BREAK, false);
 
         // set PC to IRQ vector
@@ -875,7 +875,7 @@ impl CPU {
     // Pushes a copy of the status flags on to the stack.
     fn op_PHP<T: Memory>(&mut self, mem: &mut T) -> bool {
         let tmp = self.regs.flags | Flags::BREAK;
-        self.pushb_sp(mem, tmp.bits);
+        self.pushb_sp(mem, tmp.bits());
         self.set_flag(Flags::BREAK, false);
         false
     }

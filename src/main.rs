@@ -37,7 +37,7 @@ lazy_static! {
 }
 
 fn main() -> Result<(), Error> {
-    simple_logger::init_with_level(Level::Debug).unwrap();
+    simple_logger::init_with_level(Level::Info).unwrap();
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         bail!("No cartridge supplied. Usage: ./jane cartridge.nes");

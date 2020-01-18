@@ -58,7 +58,7 @@ impl Memory for NESMemory {
             return self.ram[(addr & RAM_PHYS_RANGE[1]) as usize]
         }
         if PPU_ADDR_RANGE[0] <= addr && addr <= PPU_ADDR_RANGE[1] {
-            let ppu = self.ppu.borrow();
+            let mut ppu = self.ppu.borrow_mut();
             return ppu.readb(addr & PPU_PHYS_RANGE[1]);
         }
         0x0000  // generic response
