@@ -112,21 +112,26 @@ impl Cartridge {
     pub fn writeb(&mut self, addr: Addr, data: Byte) -> bool {
         if let Some(mapped_addr) = self.mapper.map_write_addr(addr) {
             self.prg_rom[mapped_addr as usize] = data;
-            return true
+            return true;
         }
         false
     }
 
     // Read from cartridge if the cartridge has readable VRAM/VROM
     pub fn readb_ppu(&self, addr: Addr) -> Option<Byte> {
-        // TODO
+        if let Some(mapped_addr) = self.mapper.map_read_addr_ppu(addr) {
+            return Some(self.chr_rom[mapped_addr as usize])
+        }
         None
     }
 
     // Let the cartridge handle the ppu write. Returns true if cartridge
     // handled the write, false otherwise
     pub fn writeb_ppu(&mut self, addr: Addr, data: Byte) -> bool {
-        // TODO
+        if let Some(mapped_addr) = self.mapper.map_write_addr_ppu(addr) {
+            self.chr_rom[mapped_addr as usize] = data;
+            return true;
+        }
         false
     }
 }

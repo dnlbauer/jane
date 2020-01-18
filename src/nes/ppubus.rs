@@ -35,7 +35,13 @@ impl PPUBus {
 
 impl PPUMemory for PPUBus {
     fn readb_ppu(&self, addr: Addr) -> Byte {
-        // give the cartridge a chance to handle it
+        // Palette is never mapped to cartridge
+        if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
+            let rel_addr = addr - 0x3F00;
+            return self.palette_memory[(rel_addr % 0x0020) as usize]
+        }
+
+        // give the cartridge a chance to handle the rest
         if let Some(cartridge) = &self.cartridge {
             if let Some(data) = cartridge.borrow().readb_ppu(addr) {
                 return data
@@ -59,15 +65,17 @@ impl PPUMemory for PPUBus {
             let rel_addr = addr - 0x2000;
             return self.nametable_memory[table][(rel_addr % 0x400) as usize]
         }
-        if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
-            let rel_addr = addr - 0x3F00;
-            return self.palette_memory[(rel_addr % 0x0020) as usize]
-        }
-
+        
         0x00
     }
     fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
-        // give the cartridge a chance to handle it
+        // Palette is never mapped to cartridge
+        if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
+            let rel_addr = addr - 0x3F00;
+            self.palette_memory[(rel_addr % 0x0020) as usize] = data;
+        }
+
+        // give the cartridge a chance to handle the rest
         if let Some(cartridge) = &self.cartridge {
             if cartridge.borrow_mut().writeb_ppu(addr, data) {
                 return
@@ -90,10 +98,6 @@ impl PPUMemory for PPUBus {
             };
             let rel_addr = addr - 0x2000;
             self.nametable_memory[table][(rel_addr % 0x400) as usize] = data;
-        }
-        if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
-            let rel_addr = addr - 0x3F00;
-            self.palette_memory[(rel_addr % 0x0020) as usize] = data;
         }
     }
 }

@@ -3,6 +3,8 @@ use crate::nes::types::*;
 pub trait Mapper {
     fn map_read_addr(&self, addr: Addr) -> Option<Addr>;
     fn map_write_addr(&self, addr: Addr) -> Option<Addr>;
+    fn map_read_addr_ppu(&self, addr: Addr) -> Option<Addr>;
+    fn map_write_addr_ppu(&self, addr: Addr) -> Option<Addr>;
 }
 
 // Mapper 0
@@ -45,6 +47,22 @@ impl Mapper for Mapper0 {
                 return Some(addr & 0x7fff);
             } else {
                 return Some(addr & 0x3fff);
+            }
+        }
+        None
+    }
+
+    fn map_read_addr_ppu(&self, addr: Addr) -> Option<Addr> {
+        if 0x0000 <= addr && addr <= 0x1FFF {
+            return Some(addr)
+        }
+        None
+    }
+
+    fn map_write_addr_ppu(&self, addr: Addr) -> Option<Addr> {
+        if 0x0000 <= addr && addr <= 0x1FFF {
+            if self.chr_banks == 0 {  // no banks => RAM
+                return Some(addr)
             }
         }
         None
