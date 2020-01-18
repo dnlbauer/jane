@@ -81,6 +81,15 @@ impl Memory for NESMemory {
     } 
 }
 
+// impl PPUMemory for NESMemory {
+//     fn readb_ppu(&self, addr: Addr) -> Byte {
+
+//     }
+//     fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
+
+//     }
+// }
+
 pub trait MemoryReader {
     fn readb<T: Memory>(&self, mem: &T, addr: Addr) -> Byte {
         mem.readb(addr)
@@ -99,23 +108,14 @@ pub trait MemoryReader {
 pub trait PPUMemory {
     fn readb_ppu(&self, addr: Addr) -> Byte;
     fn writeb_ppu(&mut self, addr: Addr, data: Byte);
-    fn readw_ppu(&self, addr: Addr) -> Word {
-        let lo = self.readb_ppu(addr);
-        let hi = self.readb_ppu(addr+1);
-        (hi as Word) << 8 | lo as Word
-    }
-    fn writew_ppu(&mut self, addr: Addr, data: Word) {
-        self.writeb_ppu(addr, data as Byte);
-        self.writeb_ppu(addr + 1, (data >> 8) as Byte);
-    }
 }
 
-pub trait PPUMemoryReader {
-    fn readb_ppu<T: PPUMemory>(&self, mem: &T, addr: Addr) -> Byte {
-        mem.readb_ppu(addr)
-    }
+// pub trait PPUMemoryReader {
+//     fn readb_ppu<T: PPUMemory>(&self, mem: &T, addr: Addr) -> Byte {
+//         mem.readb_ppu(addr)
+//     }
 
-    fn writeb_ppu<T: PPUMemory>(&mut self, mem: &mut T, addr: Addr, data: Byte) {
-        mem.writeb_ppu(addr, data)
-    } 
-}
+//     fn writeb_ppu<T: PPUMemory>(&mut self, mem: &mut T, addr: Addr, data: Byte) {
+//         mem.writeb_ppu(addr, data)
+//     } 
+// }

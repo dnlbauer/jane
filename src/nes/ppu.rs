@@ -1,4 +1,4 @@
-use crate::nes::memory::{Memory,PPUMemoryReader,PPUMemory};
+use crate::nes::memory::{Memory,PPUMemory};
 use crate::nes::types::*;
 use image::{ImageBuffer, Rgba};
 use rand::Rng;
@@ -58,7 +58,7 @@ pub struct Registers {
     // 0x2005
     pub scroll: Byte,
     // 0x2006
-    pub addr: Byte,
+    pub addr: Addr,
     // 0x2007
     pub data: Byte, 
     // 0x2008
@@ -87,10 +87,11 @@ pub struct PPU {
     pub scanline: u16,
     pub canvas_main: Sprite,
     pattern_table: [Sprite; 2],
-    pub frame_ready: bool
+    pub frame_ready: bool,
+    addr_latch_set: bool,
 }
 
-impl PPUMemoryReader for PPU {}
+// impl PPUMemoryReader for PPU {}
 
 impl PPU {
     pub fn new() -> Self {
@@ -101,12 +102,14 @@ impl PPU {
             canvas_main: ImageBuffer::new(256, 240),
             pattern_table: [ImageBuffer::new(128, 128), ImageBuffer::new(128, 128)],
             frame_ready: false,
+            addr_latch_set: false,
         }
     }
 
     pub fn reset(&mut self) {
         self.regs = Registers::new();
     }
+
 
     // Set a flag with the corresponding mask
     fn set_flag(&mut self, register: PPURegister, flag: Byte, val: bool) {
@@ -118,9 +121,10 @@ impl PPU {
             PPURegister::OAMAddr => &mut self.regs.oam_addr,
             PPURegister::OAMData => &mut self.regs.oam_data,
             PPURegister::Scroll => &mut self.regs.scroll,
-            PPURegister::Addr => &mut self.regs.addr,
+            // PPURegister::Addr => &mut self.regs.addr,
             PPURegister::Data => &mut self.regs.data,
             PPURegister::DMA => &mut self.regs.dma,
+            _ => { return }
         };
             
         if val {
@@ -128,6 +132,24 @@ impl PPU {
         } else {
             *reg &= !flag;
         }
+    }
+
+    fn get_flag(&self, register: PPURegister, flag: Byte) -> bool {
+        // TODO Likely not all of them should be rw and treated as flags 
+        let reg = match register {
+            PPURegister::Control => &self.regs.ctrl,
+            PPURegister::Mask => &self.regs.mask,
+            PPURegister::Status => &self.regs.status,
+            PPURegister::OAMAddr => &self.regs.oam_addr,
+            PPURegister::OAMData => &self.regs.oam_data,
+            PPURegister::Scroll => &self.regs.scroll,
+            // PPURegister::Addr => &mut self.regs.addr,
+            PPURegister::Data => &self.regs.data,
+            PPURegister::DMA => &self.regs.dma,
+            _ => { unreachable!() }
+        };
+        
+        reg & flag > 0
     }
 
 
@@ -162,24 +184,72 @@ impl PPU {
         } else if self.scanline == 261 && self.cycle == 1 {
             self.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, false);
         }
-        
-        // if (self.cycle < self.canvas_main.width() as u16) && 
-        //     (self.scanline < self.canvas_main.height() as u16) {
-        //     // random noise
-        //     let mut rng = rand::thread_rng();
-        //     let x = self.cycle;
-        //     let y = self.scanline;
-        
-        //     let color = rng.gen::<bool>();
-        //     let px = if color {
-        //         PALETTE[&0x0f]
-        //     } else {
-        //         PALETTE[&0x20]
-        //     };
+    }
 
-        //     self.canvas_main.put_pixel(x as u32, y as u32, px);
-        // }
+    // CPU can write certain registers of the PPU through the bus
+    pub fn readb(&self, addr: Addr) -> Byte {
+       // Only certain registers of the PPU can actually by read
+       // remaining registers and read attemps will return garbage
+        match addr {
+            // status
+            0x2002 => { self.regs.status },
+            // oam data 
+            0x2004 => { unimplemented!() },
+            // ppu data
+            0x2007 => { unimplemented!() },
+            _ => 0x00,  // unmapped reads                       
+        } 
+        
+    }
 
+    // CPU can write certain registers of the PPU through the bus
+    pub fn writeb(&mut self, addr: Addr, data: Byte) {
+        // Only some of the PPU regs can be written to
+        match addr {
+            // Control 
+            0x2000 => { self.regs.ctrl = data },
+            // Mask 
+            0x2001 => { self.regs.mask = data },
+            // OAM address
+            0x2003 => { unreachable!() },
+            // OAM data
+            0x2004 => { unreachable!() },
+            // Scroll
+            0x2005 => { unimplemented!() },
+            // Addr
+            // To write a 16bit addr to the ppu, two consecutive writes are 
+            // required to set the hi and lo byte, respectively
+            0x2006 => {  
+                if !self.addr_latch_set {
+                    self.regs.addr = self.regs.addr & 0x00FF | (data as Word) << 8;
+                } else {
+                    self.regs.addr = self.regs.addr & 0xFF00 | data as Word;
+                }
+                self.addr_latch_set = !self.addr_latch_set;
+            }
+            // write data to the ppu addr bus
+            0x2007 => {
+                self.writeb_ppu(self.regs.addr, data);
+                // after write, increment vram addr for further writes.
+                // The increment value is determined by the vertical mode
+                // flag of the status reg 0: +1, 1: +32
+                if self.get_flag(PPURegister::Control, CTRL_INCR_MODE) {
+                    self.regs.addr += 32; 
+                } else {
+                    self.regs.addr += 1;
+                }
+            },
+            _ => { } // unwriteable addr, do nothing
+        }
+    }
+
+    // Some read/writes are nt
+    fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
+        // TODO
+    }
+
+    fn readb_ppu(&self, addr: Addr) -> Byte {
+        unimplemented!()
     }
 
     // Get the correct color for the pixel from the given palette
@@ -230,42 +300,6 @@ impl PPU {
     }
 }
 
-impl Memory for PPU {
-    fn readb(&self, addr: Addr) -> Byte {
-       // Only some of the PPU regs can actually by read
-       match addr {
-           // PPU status 
-           0x2002 => { return self.regs.status },
-           // OAM data (object attribute memory = list of 64 sprites) 
-           0x2004 => { unimplemented!() },
-           // ppu data 
-           0x2007 => { unimplemented!() },
-           _ => 0x00  
-       } 
-        
-    }
-    fn writeb(&mut self, addr: Addr, data: Byte) {
-        // Only some of the PPU regs can be written to
-        match addr {
-            // Control 
-            0x2000 => { self.regs.ctrl = data },
-            // Mask 
-            0x2001 => { self.regs.mask = data },
-            // OAM address
-            0x2003 => { unimplemented!() },
-            // OAM data
-            0x2004 => { unimplemented!() },
-            // Scroll
-            0x2005 => { self.regs.scroll = data },
-            // Address
-            0x2006 => { self.regs.addr = data }, 
-            // ppu data
-            0x2007 => { self.regs.data = data },
-            _ => { unreachable!() } 
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,5 +343,19 @@ mod tests {
             "register={:#010b}; should be 0b10000000", ppu.regs.status);
         assert_eq!(ppu.regs.mask, 0b0000001,
             "register={:#010b}; should be 0b0000001", ppu.regs.status);
+    }
+
+    #[test]
+    fn test_write_addr() {
+        let mut ppu = PPU::new();
+        // TODO unit test
+        assert_eq!(ppu.regs.addr, 0x0000);
+
+        ppu.writeb(0x2006, 0x12);
+        assert_eq!(ppu.regs.addr, 0x1200);
+        ppu.writeb(0x2006, 0x34);
+        assert_eq!(ppu.regs.addr, 0x1234);
+        ppu.writeb(0x2006, 0x56);
+        assert_eq!(ppu.regs.addr, 0x5634);
     }
 }
