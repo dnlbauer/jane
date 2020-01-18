@@ -13,8 +13,6 @@ pub struct Disasm {
     pub addresses: Vec<Addr>
 }
 
-impl MemoryReader for Disasm {}
-
 impl Disasm {
     // Disassemble given code region
     pub fn disassemble<T: Memory>(mem: &T, start: Addr, stop: Addr) -> Result<Self, Error> {

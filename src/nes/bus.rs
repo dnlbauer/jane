@@ -85,17 +85,3 @@ impl Memory for Bus {
         }
     } 
 }
-
-pub trait MemoryReader {
-    fn readb<T: Memory>(&self, mem: &T, addr: Addr) -> Byte {
-        mem.readb(addr)
-    }
-
-    fn readw<T: Memory>(&self, mem: &T, addr: Addr) -> Word {
-        mem.readw(addr)
-    }
-
-    fn writeb<T: Memory>(&mut self, mem: &mut T, addr: Addr, data: Byte) {
-        mem.writeb(addr, data)
-    } 
-}

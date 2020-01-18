@@ -1,4 +1,4 @@
-use crate::nes::{Memory,MemoryReader};
+use crate::nes::Memory;
 use crate::nes::types::*;
 use instructions::{Instruction,Operation,AddrMode};
 use core::fmt::{Debug,Formatter,Result};
@@ -65,9 +65,6 @@ pub struct CPU {
     stopped: bool, 
 }
 
-// Default implementation to read/write from mem
-impl MemoryReader for CPU { }
-
 impl CPU {
     pub fn new() -> Self {
         CPU {
@@ -133,14 +130,14 @@ impl CPU {
 
     // read the next opcode and increment pc
     fn readb_pc<T: Memory>(&mut self, mem: &T) -> Byte {
-        let val = self.readb(mem, self.regs.pc);
+        let val = mem.readb(self.regs.pc);
         self.regs.pc += 1;
         val
     }
 
     // read whole Word from pc
     fn readw_pc<T: Memory>(&mut self, mem: &T) -> Word {
-        let val = self.readw(mem, self.regs.pc);
+        let val = mem.readw(self.regs.pc);
         self.regs.pc += 2;
         val
     }
@@ -148,13 +145,13 @@ impl CPU {
     // Pop a byte from the SP
     fn popb_sp<T: Memory>(&mut self, mem: &T) -> Byte {
         self.regs.sp += 1;
-        let val = self.readb(mem, STACK_BASE_ADDR + self.regs.sp as Word);
+        let val = mem.readb(STACK_BASE_ADDR + self.regs.sp as Word);
         val
     }
 
     // Push a byte to the SP.
     fn pushb_sp<T: Memory>(&mut self, mem: &mut T, val: Byte) {
-        self.writeb(mem, STACK_BASE_ADDR + self.regs.sp as Word, val);
+        mem.writeb(STACK_BASE_ADDR + self.regs.sp as Word, val);
         self.regs.sp -= 1;
     }
 
@@ -370,12 +367,12 @@ impl CPU {
         // and need to wrap around. So hi is fetched from 0x0000 instead of
         // 0x0100
         let addr = if ind_addr & LO == 0x00FF {
-            let lo = self.readb(mem, ind_addr);
+            let lo = mem.readb(ind_addr);
             let hi_addr = ind_addr - 0x00FF;
-            let hi = self.readb(mem, hi_addr);
+            let hi = mem.readb(hi_addr);
             (((hi as Word) << 8) | lo as Word)
         } else { // normal behaviour
-            self.readw(mem, ind_addr)
+            mem.readw(ind_addr)
         };
 
         (addr, false)
@@ -388,16 +385,16 @@ impl CPU {
 
         let lo_addr = ind_addr.wrapping_add(self.regs.x);
         let hi_addr = ind_addr.wrapping_add(self.regs.x).wrapping_add(1);
-        let lo = self.readb(mem, lo_addr as Word);
-        let hi = self.readb(mem, hi_addr as Word);
+        let lo = mem.readb(lo_addr as Word);
+        let hi = mem.readb(hi_addr as Word);
         ((hi as Word) << 8 | lo as Word, false) 
     }
 
     fn am_IZY<T: Memory>(&mut self, mem: &T) -> (Word, bool) {
         let ind_addr = self.readb_pc(mem);
 
-        let lo = self.readb(mem, ind_addr as Word);
-        let hi = self.readb(mem, ind_addr.wrapping_add(1) as Word);
+        let lo = mem.readb(ind_addr as Word);
+        let hi = mem.readb(ind_addr.wrapping_add(1) as Word);
 
         let addr = (hi as Word) << 8 | lo as Word;
         let addr = addr.wrapping_add(self.regs.y as Word);
@@ -419,7 +416,7 @@ impl CPU {
     // If the result is 0, Zero bit is set. If the result if negative,
     // Negative bit is set
     fn op_ADC<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
-        let val = self.readb(mem, addr) as Word;
+        let val = mem.readb(addr) as Word;
         let tmp = self.regs.a as Word + val + self.get_flag(Flags::CARRY) as Word;
 
         self.set_flag(Flags::CARRY, tmp > 255);
@@ -443,7 +440,7 @@ impl CPU {
     // If the result is 0, Zero bit is set. If the result if negative,
     // Negative bit is set
     fn op_AND<T: Memory>(&mut self, mem: &T, addr: Addr) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         self.regs.a &= val;
         self.set_flag_nz(self.regs.a);
         true
@@ -464,7 +461,7 @@ impl CPU {
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a
         } else {
-            self.readb(mem, addr)
+            mem.readb(addr)
         };
         let shifted = (val << 1) as Byte;
         self.set_flag(Flags::CARRY, (val & 0b10000000) > 0);
@@ -472,7 +469,7 @@ impl CPU {
         if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
         } else {
-            self.writeb(mem, addr, shifted);
+            mem.writeb(addr, shifted);
         }
 
         self.set_flag_nz(shifted);
@@ -521,7 +518,7 @@ impl CPU {
     // bits 7 and 6 of operand are transfered to bit 7 and 6 of SR (N,V);
     // the zeroflag is set to the result of operand AND accumulator.
     fn op_BIT<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         self.set_flag(Flags::OVERFLOW, (val & Flags::OVERFLOW.bits()) > 1);
         self.set_flag(Flags::NEGATIVE, (val & Flags::NEGATIVE.bits()) > 1);
         self.set_flag(Flags::ZERO, (val & self.regs.a) == 0);
@@ -583,7 +580,7 @@ impl CPU {
         self.set_flag(Flags::BREAK, false);
 
         // set PC to IRQ vector
-        self.regs.pc = self.readw(mem, 0xFFFE);
+        self.regs.pc = mem.readw(0xFFFE);
         false 
     }
 
@@ -641,7 +638,7 @@ impl CPU {
     // This instruction compares the contents of the accumulator with another
     // memory held value and sets the zero and carry flags as appropriate.
     fn op_CMP<T: Memory>(&mut self, mem: &mut T, addr: Addr) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         let tmp = (self.regs.a as Word).wrapping_sub(val as Word);
 
         self.set_flag(Flags::CARRY, self.regs.a >= val);
@@ -651,7 +648,7 @@ impl CPU {
 
     // Compare X
     fn op_CPX<T: Memory>(&mut self, mem: &T, addr: Addr) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         let tmp = (self.regs.x as Word).wrapping_sub(val as Word);
 
         self.set_flag(Flags::CARRY, self.regs.x >= val);
@@ -661,7 +658,7 @@ impl CPU {
 
     // Compare Y
     fn op_CPY<T: Memory>(&mut self, mem: &T, addr: Addr) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         let tmp = (self.regs.y as Word).wrapping_sub(val as Word);
 
         self.set_flag(Flags::CARRY, self.regs.y >= val);
@@ -681,9 +678,9 @@ impl CPU {
     // Subtracts one from the value held at a specified memory location
     // setting the zero and negative flags as appropriate.
     fn op_DEC<T: Memory>(&mut self, mem: &mut T, addr: Word) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         let val = val.wrapping_sub(1);
-        self.writeb(mem, addr, val);
+        mem.writeb(addr, val);
 
         self.set_flag_nz(val);
         false
@@ -716,7 +713,7 @@ impl CPU {
     // An exclusive OR is performed, bit by bit, on the accumulator contents
     // using the contents of a byte of memory.
     fn op_EOR<T: Memory>(&mut self, mem: &T, addr: Addr) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         self.regs.a = self.regs.a ^ val;
 
         self.set_flag_nz(self.regs.a);
@@ -728,9 +725,9 @@ impl CPU {
     // Adds one to the value held at a specified memory location setting the
     // zero and negative flags as appropriate.
     fn op_INC<T: Memory>(&mut self, mem: &mut T, addr: Word) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         let val = val.wrapping_add(1);
-        self.writeb(mem, addr, val);
+        mem.writeb(addr, val);
         self.set_flag_nz(val);
         false
     }
@@ -770,9 +767,9 @@ impl CPU {
     // Jump to subroutine (leaves trace on the stack)
     fn op_JSR<T: Memory>(&mut self, mem: &mut T, addr: Word) -> bool {
         self.regs.pc -= 1;
-        self.writeb(mem, STACK_BASE_ADDR + self.regs.sp as Word, ((self.regs.pc >> 8) & 0x00ff) as Byte);
+        mem.writeb(STACK_BASE_ADDR + self.regs.sp as Word, ((self.regs.pc >> 8) & 0x00ff) as Byte);
         self.regs.sp -= 1;
-        self.writeb(mem, STACK_BASE_ADDR + self.regs.sp as Word, (self.regs.pc & 0x00ff) as Byte);
+        mem.writeb(STACK_BASE_ADDR + self.regs.sp as Word, (self.regs.pc & 0x00ff) as Byte);
         self.regs.sp -= 1;
         self.jump(addr);
         false
@@ -799,7 +796,7 @@ impl CPU {
 
     // Read value from addr into A
     fn op_LDA<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         self.regs.a = val;
         self.set_flag_nz(val);
         true
@@ -807,7 +804,7 @@ impl CPU {
 
     // Read value from addr into X
     fn op_LDX<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         self.regs.x = val;
         self.set_flag_nz(val);
         true
@@ -815,7 +812,7 @@ impl CPU {
 
     // Read value from addr into Y
     fn op_LDY<T: Memory>(&mut self, mem: &T, addr: Word) -> bool {
-        let val = self.readb(mem, addr);
+        let val = mem.readb(addr);
         self.regs.y = val;
         self.set_flag_nz(val);
         true
@@ -831,7 +828,7 @@ impl CPU {
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a as Word
         } else {
-            self.readb(mem, addr) as Word
+            mem.readb(addr) as Word
         };
 
         self.set_flag(Flags::CARRY, (val & 0b00000001) != 0);
@@ -841,7 +838,7 @@ impl CPU {
         if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
         } else {
-            self.writeb(mem, addr, shifted);
+            mem.writeb(addr, shifted);
         }
         false
     }
@@ -859,7 +856,7 @@ impl CPU {
     // An inclusive OR is performed, bit by bit, on the accumulator contents
     // using the contents of a byte of memory.
     fn op_ORA<T: Memory>(&mut self, mem: &T, addr: Addr) -> bool {
-        self.regs.a = self.regs.a | self.readb(mem, addr);
+        self.regs.a = self.regs.a | mem.readb(addr);
         self.set_flag_nz(self.regs.a);
         true
     }
@@ -908,7 +905,7 @@ impl CPU {
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a as Word
         } else {
-            self.readb(mem, addr) as Word
+            mem.readb(addr) as Word
         };
         let shifted = (val << 1) as Byte | self.get_flag(Flags::CARRY);
         
@@ -918,7 +915,7 @@ impl CPU {
         if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted as Byte;
         } else {
-            self.writeb(mem, addr, shifted);
+            mem.writeb(addr, shifted);
         }
         false
     }
@@ -947,7 +944,7 @@ impl CPU {
         let val = if *addr_mode == AddrMode::IMP {
             self.regs.a as Word
         } else {
-            self.readb(mem, addr) as Word
+            mem.readb(addr) as Word
         };
 
         let shifted = (val >> 1) as Byte | (self.get_flag(Flags::CARRY) << 7);
@@ -958,7 +955,7 @@ impl CPU {
         if *addr_mode == AddrMode::IMP {
             self.regs.a = shifted;
         } else {
-            self.writeb(mem, addr, shifted);
+            mem.writeb(addr, shifted);
         }
         false
     }
@@ -982,9 +979,9 @@ impl CPU {
     // calling routine. It pulls the program counter (minus one) from the stack.
     fn op_RTS<T: Memory>(&mut self, mem: &T) -> bool {
         self.regs.sp += 1;
-        let lo = self.readb(mem, 0x0100 + self.regs.sp as Addr);
+        let lo = mem.readb(0x0100 + self.regs.sp as Addr);
         self.regs.sp += 1;
-        let hi = self.readb(mem, 0x0100 + self.regs.sp as Addr);
+        let hi = mem.readb(0x0100 + self.regs.sp as Addr);
         let addr = (hi as Addr) << 8 | lo as Addr;
         self.regs.pc = addr + 1; 
         false
@@ -993,7 +990,7 @@ impl CPU {
     // Unofficial: Stores bitwise AND of A and X
     fn op_SAX<T: Memory>(&mut self, mem: &mut T, addr: Addr) -> bool {
         let val = self.regs.a & self.regs.x;
-        self.writeb(mem, addr, val); 
+        mem.writeb(addr, val); 
         false
     }
 
@@ -1005,7 +1002,7 @@ impl CPU {
     // the carry bit is clear, this enables multiple byte subtraction to be
     // performed.
     fn op_SBC<T: Memory>(&mut self, mem: &T, addr: Addr) -> bool {
-        let val = self.readb(mem, addr) as Word;
+        let val = mem.readb(addr) as Word;
         
         // invert buttom 8 bits
         let val = val ^ LO;
@@ -1063,19 +1060,19 @@ impl CPU {
 
     // Push A reg to memory
     fn op_STA<T: Memory>(&mut self, mem: &mut T, addr: Word) -> bool {
-        self.writeb(mem, addr, self.regs.a);
+        mem.writeb(addr, self.regs.a);
         false
     }
 
     // Push X reg to memory
     fn op_STX<T: Memory>(&mut self, mem: &mut T, addr: Word) -> bool {
-        self.writeb(mem, addr, self.regs.x);
+        mem.writeb(addr, self.regs.x);
         false
     }
 
     // Push Y reg to memory
     fn op_STY<T: Memory>(&mut self, mem: &mut T, addr: Word) -> bool {
-        self.writeb(mem, addr, self.regs.y);
+        mem.writeb(addr, self.regs.y);
         false
     }
 

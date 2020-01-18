@@ -90,16 +90,6 @@ pub trait PPUMemory {
     fn writeb_ppu(&mut self, addr: Addr, data: Byte);
 }
 
-pub trait PPUMemoryReader {
-    fn readb_ppu<T: PPUMemory>(&self, mem: &T, addr: Addr) -> Byte {
-        mem.readb_ppu(addr)
-    }
-
-    fn writeb_ppu<T: PPUMemory>(&mut self, mem: &mut T, addr: Addr, data: Byte) {
-        mem.writeb_ppu(addr, data)
-    } 
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
