@@ -1,7 +1,6 @@
-use crate::nes::memory::{Memory,PPUMemory};
+use crate::nes::memory::PPUMemory;
 use crate::nes::types::*;
 use image::{ImageBuffer, Rgba};
-use rand::Rng;
 use palette::PALETTE;
 
 pub mod palette;
@@ -94,6 +93,7 @@ impl Registers {
     }
 }
 
+
 pub struct PPU {
     pub regs: Registers,
     pub cycle: u16, 
@@ -105,15 +105,13 @@ pub struct PPU {
     data_buffer: Byte,
 }
 
-// impl PPUMemoryReader for PPU {}
-
 impl PPU {
     pub fn new() -> Self {
         PPU {
             regs: Registers::new(),
             cycle: 0,
             scanline: 0,
-            canvas_main: ImageBuffer::new(256, 240),
+            canvas_main: ImageBuffer::from_pixel(256, 240, PALETTE[&0x00]),
             pattern_table: [ImageBuffer::new(128, 128), ImageBuffer::new(128, 128)],
             frame_ready: false,
             addr_latch_set: false,
@@ -162,7 +160,7 @@ impl PPU {
     // Scanline 240: PPU idle
     // Scanline 241-260: Vblack. Flag is set during second clock of 241 together
     // with NMI 
-    pub fn clock<T: Memory>(&mut self, _mem: &mut T) {
+    pub fn clock<T: PPUMemory>(&mut self, _mem: &mut T) {
         if self.cycle == 340 {
             self.cycle = 0;
             if self.scanline == 261 {
@@ -184,8 +182,8 @@ impl PPU {
         }
     }
 
-    // CPU can write certain registers of the PPU through the bus
-    pub fn readb(&mut self, addr: Addr) -> Byte {
+    // read from the main bus
+    pub fn readb<T: PPUMemory>(&mut self, mem: &T, addr: Addr) -> Byte {
        // Only certain registers of the PPU can actually by read
        // remaining registers and read attemps will return garbage
         match addr {
@@ -208,7 +206,7 @@ impl PPU {
                 // because the PPU is weird, this does not apply for the 
                 // palette memory
                 let data = self.data_buffer;
-                self.data_buffer = self.readb_ppu(addr);
+                self.data_buffer = mem.readb_ppu(addr);
 
                 if addr > 0x3F00 {  // everything above 0x3F00 is palette
                    self.data_buffer 
@@ -220,8 +218,8 @@ impl PPU {
         } 
     }
 
-    // CPU can write certain registers of the PPU through the bus
-    pub fn writeb(&mut self, addr: Addr, data: Byte) {
+    // // write to the main bus
+    pub fn writeb<T: PPUMemory>(&mut self, mem: &mut T, addr: Addr, data: Byte) {
         // Only some of the PPU regs can be written to
         match addr {
             // Control 
@@ -253,7 +251,7 @@ impl PPU {
             }
             // write data to the ppu addr bus
             0x2007 => {
-                self.writeb_ppu(self.regs.addr, data);
+                mem.writeb_ppu(self.regs.addr, data);
                 // after write, increment vram addr for next write.
                 // The increment value is determined by the vertical mode
                 // flag of the status reg 0: +1, 1: +32
@@ -265,15 +263,6 @@ impl PPU {
             },
             _ => { } // unwriteable addr, do nothing
         }
-    }
-
-    // Some read/writes are nt
-    fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
-        // TODO
-    }
-
-    fn readb_ppu(&self, addr: Addr) -> Byte {
-        unimplemented!()
     }
 
     // Get the correct color for the pixel from the given palette
@@ -327,6 +316,7 @@ impl PPU {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nes::memory::PPUBus;
 
     #[test]
     fn test_set_flags() {
@@ -372,14 +362,13 @@ mod tests {
     #[test]
     fn test_write_addr() {
         let mut ppu = PPU::new();
-        // TODO unit test
+        let mut ppu_bus = PPUBus::new();
         assert_eq!(ppu.regs.addr, 0x0000);
-
-        ppu.writeb(0x2006, 0x12);
+        ppu.writeb(&mut ppu_bus, 0x2006, 0x12);
         assert_eq!(ppu.regs.addr, 0x1200);
-        ppu.writeb(0x2006, 0x34);
+        ppu.writeb(&mut ppu_bus, 0x2006, 0x34);
         assert_eq!(ppu.regs.addr, 0x1234);
-        ppu.writeb(0x2006, 0x56);
+        ppu.writeb(&mut ppu_bus, 0x2006, 0x56);
         assert_eq!(ppu.regs.addr, 0x5634);
     }
 }

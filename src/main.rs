@@ -56,7 +56,7 @@ fn main() -> Result<(), Error> {
     }
 
     // disassemble instructions
-    let disasm = Disasm::disassemble(&nes.memory, 0xC000, 0xFFFF).unwrap();
+    let disasm = Disasm::disassemble(&nes.bus, 0xC000, 0xFFFF).unwrap();
 
     // Prepare window and drawing resources
 
@@ -340,7 +340,7 @@ fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, nes: &NES, offset:
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;
         let mut line = format!("{:#06x}:", page);
         (0u16..16u16).map(|offset| offset + page)
-            .map(|addr| nes.memory.readb(addr))
+            .map(|addr| nes.bus.readb(addr))
             .map(|val| format!(" {:02x}", val))
             .for_each(|s| line.push_str(&s));
         glyphs.queue(Section {
@@ -357,7 +357,7 @@ fn render_memory(glyphs: &mut GlyphBrush<Resources, Factory>, nes: &NES, offset:
         position_y.1 += FT_LINE_DISTANCE + FT_SIZE_PX;
         let mut line = format!("{:#06x}:", page);
         (0u16..16u16).map(|offset| offset + page)
-            .map(|addr| nes.memory.readb(addr))
+            .map(|addr| nes.bus.readb(addr))
             .map(|val| format!(" {:02x}", val))
             .for_each(|s| line.push_str(&s));
         glyphs.queue(Section {

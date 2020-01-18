@@ -19,42 +19,48 @@ pub mod ppu;
 // as the mediator between the different components and hold the RAM 
 pub struct NES {
     pub cpu: CPU,
+    pub bus: Bus,
     pub ppu: Rc<RefCell<PPU>>,
-    pub memory: NESMemory,
+    pub ppu_bus: PPUBus,
     pub clock_count: u64,
 }
 
 impl NES {
     pub fn new() -> Self {
-        // The memory module needs access to some parts of the nes like the ppu
-        // to forward cpu reads to it. Because the NES also requires access
-        // to the PPU for clocking, we use shared ownership. Otherwise, all
-        // components except the CPU would have to live inside the memory
-        // instance, which is conceptually not what we are looking for.
+        // The bus module needs access to the ppu to forward cpu reads to it.
+        // Because the NES also requires access to the PPU for clocking, 
+        // shared ownership is required. Otherwise, all
+        // components except the CPU would have to live inside the bus
+        // instance, which is conceptually not nice.
         let ppu = Rc::new(RefCell::new(PPU::new()));
+        let ppu_bus = Rc::new(RefCell::new(PPUBus::new()));
         NES {
             cpu: CPU::new(),
+            bus: Bus::new(ppu.clone(), ppu_bus.clone()),
             ppu: ppu.clone(),
-            memory: NESMemory::new(ppu.clone()),
+            ppu_bus: PPUBus::new(),
             clock_count: 0,
         }
     }
 
-    // Insert a cartridge into the NES. This inserts the cartridge memory
+    // Insert a cartridge into the NES. This inserts the cartridge bus
     // into the NES address range
     pub fn insert_cartridge(&mut self, cartridge: Cartridge) {
-        self.memory.insert_cartridge(cartridge);
+        // both buses need to be connected to the cartridge
+        let cart = Rc::new(RefCell::new(cartridge));
+        self.bus.insert_cartridge(cart.clone());
+        self.ppu_bus.insert_cartridge(cart.clone())
     }
 
     // Initializes the NES CPU programm pointer
     pub fn start(&mut self) {
-        self.cpu.find_pc_addr(&self.memory);
+        self.cpu.find_pc_addr(&self.bus);
     }
 
     // Reset the CPU
     pub fn reset(&mut self) {
         self.clock_count = 0;
-        self.cpu.reset(&self.memory);
+        self.cpu.reset(&self.bus);
         self.ppu.borrow_mut().reset();
     }
 
@@ -62,9 +68,9 @@ impl NES {
     pub fn clock(&mut self) {
         self.clock_count += 1;
         if self.clock_count % 3 == 0 {
-            self.cpu.clock(&mut self.memory);
+            self.cpu.clock(&mut self.bus);
         }
-        self.ppu.borrow_mut().clock(&mut self.memory);
+        self.ppu.borrow_mut().clock(&mut self.ppu_bus);
         if self.clock_count % 100000 == 0 {
             info!("clock {}", self.clock_count);
         }
