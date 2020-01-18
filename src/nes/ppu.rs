@@ -9,28 +9,41 @@ pub mod palette;
 pub type Pixel = Rgba<u8>;
 pub type Sprite = ImageBuffer<Pixel, Vec<u8>>;
 
+// PPU Control register flags
+bitflags! {
+    pub struct Control: Byte {
+        const NAMETBL_X           = 1 << 0;
+        const NAMETBL_Y           = 1 << 1;
+        const INCREMENT_MODE      = 1 << 2;
+        const PATTERN_SPRITE_ADDR = 1 << 3;
+        const PATTERN_BG_ADDR     = 1 << 4;
+        const SPRITE_SIZE         = 1 << 5;
+        const SLAVE_MODE          = 1 << 6;
+        const ENABLE_NMI          = 1 << 7;
+    }
+}
 
-pub const CTRL_NAMETBL_X: Byte           = 1 << 0;
-pub const CTRL_NAMETBL_Y: Byte           = 1 << 1;
-pub const CTRL_INCR_MODE: Byte           = 1 << 2;
-pub const CTRL_PATTERN_SPRITE: Byte      = 1 << 3;
-pub const CTRL_PATTERN_BG: Byte          = 1 << 4;
-pub const CTRL_SPRITE_SIZE: Byte         = 1 << 5;
-pub const CTRL_SLAVE_MODE: Byte          = 1 << 6;
-pub const CTRL_ENABLE_NMI: Byte          = 1 << 7;
+// PPU Mask register
+bitflags! {
+    pub struct Mask: Byte {
+        const GRAYSCALE           = 1 << 0;
+        const RENDER_BG_LEFT      = 1 << 1;
+        const RENDER_SPRITES_LEFT = 1 << 2;
+        const RENDER_BG           = 1 << 3;
+        const RENDER_SPRITES      = 1 << 4;
+        const ENHANCE_RED         = 1 << 5;
+        const ENHANCE_GREEN       = 1 << 6;
+        const ENHANCE_BLUE        = 1 << 7;
+    }
+}
 
-pub const STATUS_SPRITE_OVERFOL: Byte    = 1 << 5;
-pub const STATUS_SPRITE_ZERO_HIT: Byte    = 1 << 6;
-pub const STATUS_VERTICAL_BLANK: Byte     = 1 << 7;
-
-pub const MASK_GRAYSCALE: Byte           = 1 << 0;
-pub const MASK_RENDER_BG_LEFT: Byte      = 1 << 1;
-pub const MASK_RENDER_SPRITES_LEFT: Byte = 1 << 2;
-pub const MASK_RENDER_BG: Byte           = 1 << 3;
-pub const MASK_RENDER_SPRITES: Byte      = 1 << 4;
-pub const MASK_ENHANCE_RED: Byte         = 1 << 5;
-pub const MASK_ENHANCE_GREEN: Byte       = 1 << 6;
-pub const MASK_ENHANCE_BLUE: Byte        = 1 << 7;
+bitflags! {
+    pub struct Status: Byte {
+        const SPRITE_OVERFOLW    = 1 << 5;
+        const SPRITE_ZERO_HIT    = 1 << 6;
+        const VERTICAL_BLANK     = 1 << 7;
+    }
+}
 
 enum PPURegister {
     Control,
@@ -46,11 +59,11 @@ enum PPURegister {
 
 pub struct Registers {
     // 0x2000
-    pub ctrl: Byte,
+    pub ctrl: Control,
     // 0x2001
-    pub mask: Byte,
+    pub mask: Mask,
     // 0x2002
-    pub status: Byte,
+    pub status: Status,
     // 0x2003
     pub oam_addr: Byte,
     // 0x2004
@@ -68,9 +81,9 @@ pub struct Registers {
 impl Registers {
     fn new() -> Registers {
         Registers {
-           ctrl: 0x00,
-           mask: 0x00,
-           status: 0x00,
+           ctrl: Control::from_bits(0x00).unwrap(),
+           mask: Mask::from_bits(0x00).unwrap(),
+           status: Status::from_bits(0x00).unwrap(),
            oam_addr: 0x00,
            oam_data: 0x00,
            scroll: 0x00,
@@ -110,48 +123,31 @@ impl PPU {
         self.regs = Registers::new();
     }
 
-
-    // Set a flag with the corresponding mask
-    fn set_flag(&mut self, register: PPURegister, flag: Byte, val: bool) {
-        // TODO Likely not all of them should be rw and treated as flags 
-        let reg = match register {
-            PPURegister::Control => &mut self.regs.ctrl,
-            PPURegister::Mask => &mut self.regs.mask,
-            PPURegister::Status => &mut self.regs.status,
-            PPURegister::OAMAddr => &mut self.regs.oam_addr,
-            PPURegister::OAMData => &mut self.regs.oam_data,
-            PPURegister::Scroll => &mut self.regs.scroll,
-            // PPURegister::Addr => &mut self.regs.addr,
-            PPURegister::Data => &mut self.regs.data,
-            PPURegister::DMA => &mut self.regs.dma,
-            _ => { return }
-        };
-            
+    fn set_status(&mut self, flag: Status, val: bool) {
         if val {
-            *reg |= flag;
+            self.regs.status |= flag;
         } else {
-            *reg &= !flag;
+            self.regs.status &= !flag;
         }
     }
 
-    fn get_flag(&self, register: PPURegister, flag: Byte) -> bool {
-        // TODO Likely not all of them should be rw and treated as flags 
-        let reg = match register {
-            PPURegister::Control => &self.regs.ctrl,
-            PPURegister::Mask => &self.regs.mask,
-            PPURegister::Status => &self.regs.status,
-            PPURegister::OAMAddr => &self.regs.oam_addr,
-            PPURegister::OAMData => &self.regs.oam_data,
-            PPURegister::Scroll => &self.regs.scroll,
-            // PPURegister::Addr => &mut self.regs.addr,
-            PPURegister::Data => &self.regs.data,
-            PPURegister::DMA => &self.regs.dma,
-            _ => { unreachable!() }
-        };
-        
-        reg & flag > 0
+    fn get_status(&self, flag: Status) -> bool {
+        self.regs.status.contains(flag)
     }
 
+    fn set_control(&mut self, flag: Control, val: bool) {
+        if val {
+            self.regs.ctrl |= flag;
+        } else {
+            self.regs.ctrl &= !flag;
+        }
+    }
+
+    fn get_control(&self, flag: Control) -> bool {
+        self.regs.ctrl.contains(flag)
+    }
+
+    
 
     // PPU renders 262 scanlines with 341 clocks per line. One px per clock
     // Scanline -1,261: Dummy scanline
@@ -179,10 +175,10 @@ impl PPU {
 
         // set/clear vblank flag
         if self.scanline == 241 && self.cycle == 1 {
-            self.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
+            self.set_status(Status::VERTICAL_BLANK, true);
 
         } else if self.scanline == 261 && self.cycle == 1 {
-            self.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, false);
+            self.set_status(Status::VERTICAL_BLANK, false);
         }
     }
 
@@ -192,7 +188,7 @@ impl PPU {
        // remaining registers and read attemps will return garbage
         match addr {
             // status
-            0x2002 => { self.regs.status },
+            0x2002 => { self.regs.status.bits },
             // oam data 
             0x2004 => { unimplemented!() },
             // ppu data
@@ -207,9 +203,9 @@ impl PPU {
         // Only some of the PPU regs can be written to
         match addr {
             // Control 
-            0x2000 => { self.regs.ctrl = data },
+            0x2000 => { self.regs.ctrl = Control::from_bits(data).unwrap() },
             // Mask 
-            0x2001 => { self.regs.mask = data },
+            0x2001 => { self.regs.mask = Mask::from_bits(data).unwrap() },
             // OAM address
             0x2003 => { unreachable!() },
             // OAM data
@@ -233,7 +229,7 @@ impl PPU {
                 // after write, increment vram addr for further writes.
                 // The increment value is determined by the vertical mode
                 // flag of the status reg 0: +1, 1: +32
-                if self.get_flag(PPURegister::Control, CTRL_INCR_MODE) {
+                if self.get_control(Control::INCREMENT_MODE) {
                     self.regs.addr += 32; 
                 } else {
                     self.regs.addr += 1;
@@ -309,40 +305,40 @@ mod tests {
         let mut ppu = PPU::new();
 
         // set unset flag
-        assert_eq!(ppu.regs.status, 0b00000000);
-        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
-        assert_eq!(ppu.regs.status, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status);
-        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, false);
-        assert_eq!(ppu.regs.status, 0b00000000,
-            "register={:#010b}; should be 0b00000000", ppu.regs.status);
+        assert_eq!(ppu.regs.status.bits, 0b00000000);
+        ppu.set_status(VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status.bits, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
+        ppu.set_status(VERTICAL_BLANK, false);
+        assert_eq!(ppu.regs.status.bits, 0b00000000,
+            "register={:#010b}; should be 0b00000000", ppu.regs.status.bits);
 
 
         // set same flag twice
-        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
-        assert_eq!(ppu.regs.status, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status);
-        ppu.set_flag(PPURegister::Status, STATUS_VERTICAL_BLANK, true);
-        assert_eq!(ppu.regs.status, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status);
+        ppu.set_status(VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status.bits, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
+        ppu.set_status(VERTICAL_BLANK, true);
+        assert_eq!(ppu.regs.status.bits, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
 
 
         // set other flag
-        ppu.set_flag(PPURegister::Status, STATUS_SPRITE_ZERO_HIT, true);
-        assert_eq!(ppu.regs.status, 0b11000000,
-            "register={:#010b}; should be 0b11000000", ppu.regs.status);
+        ppu.set_status(SPRITE_ZERO_HIT, true);
+        assert_eq!(ppu.regs.status.bits, 0b11000000,
+            "register={:#010b}; should be 0b11000000", ppu.regs.status.bits);
 
-        ppu.set_flag(PPURegister::Status, STATUS_SPRITE_ZERO_HIT, false);
-        assert_eq!(ppu.regs.status, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status);
+        ppu.set_status(SPRITE_ZERO_HIT, false);
+        assert_eq!(ppu.regs.status.bits, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
 
 
         // set other register
-        ppu.set_flag(PPURegister::Mask, MASK_GRAYSCALE, true);
-        assert_eq!(ppu.regs.status, 0b10000000,
-            "register={:#010b}; should be 0b10000000", ppu.regs.status);
-        assert_eq!(ppu.regs.mask, 0b0000001,
-            "register={:#010b}; should be 0b0000001", ppu.regs.status);
+        ppu.set_control(Control::INCREMENT_MODE, true);
+        assert_eq!(ppu.regs.status.bits, 0b10000000,
+            "register={:#010b}; should be 0b10000000", ppu.regs.status.bits);
+        assert_eq!(ppu.regs.control.bits, 0b0000100,
+            "register={:#010b}; should be 0b0000001", ppu.regs.control.bits);
     }
 
     #[test]

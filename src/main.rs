@@ -235,13 +235,13 @@ fn render_ppu(glyphs: &mut GlyphBrush<Resources, Factory>, ppu: &PPU, offset: [f
             "Ctrl",
             vec!["V", "P", "H", "B", "S", "I", "N", "N"],
             vec![
-                (ppu.regs.ctrl & (1 << 7)) > 0,
-                (ppu.regs.ctrl & (1 << 6)) > 0,
-                (ppu.regs.ctrl & (1 << 5)) > 0,
-                (ppu.regs.ctrl & (1 << 4)) > 0,
-                (ppu.regs.ctrl & (1 << 3)) > 0,
-                (ppu.regs.ctrl & (1 << 2)) > 0,
-                (ppu.regs.ctrl & (1 << 1)) > 0,
+                (ppu.regs.ctrl.bits() & (1 << 7)) > 0,
+                (ppu.regs.ctrl.bits() & (1 << 6)) > 0,
+                (ppu.regs.ctrl.bits() & (1 << 5)) > 0,
+                (ppu.regs.ctrl.bits() & (1 << 4)) > 0,
+                (ppu.regs.ctrl.bits() & (1 << 3)) > 0,
+                (ppu.regs.ctrl.bits() & (1 << 2)) > 0,
+                (ppu.regs.ctrl.bits() & (1 << 1)) > 0,
             ],
             position);
 
@@ -251,13 +251,13 @@ fn render_ppu(glyphs: &mut GlyphBrush<Resources, Factory>, ppu: &PPU, offset: [f
             "Mask",
             vec!["B", "G", "R", "s", "b", "M", "m", "G"],
             vec![
-                (ppu.regs.mask & (1 << 7)) > 0,
-                (ppu.regs.mask & (1 << 6)) > 0,
-                (ppu.regs.mask & (1 << 5)) > 0,
-                (ppu.regs.mask & (1 << 4)) > 0,
-                (ppu.regs.mask & (1 << 3)) > 0,
-                (ppu.regs.mask & (1 << 2)) > 0,
-                (ppu.regs.mask & (1 << 1)) > 0,
+                (ppu.regs.mask.bits() & (1 << 7)) > 0,
+                (ppu.regs.mask.bits() & (1 << 6)) > 0,
+                (ppu.regs.mask.bits() & (1 << 5)) > 0,
+                (ppu.regs.mask.bits() & (1 << 4)) > 0,
+                (ppu.regs.mask.bits() & (1 << 3)) > 0,
+                (ppu.regs.mask.bits() & (1 << 2)) > 0,
+                (ppu.regs.mask.bits() & (1 << 1)) > 0,
             ],
             position);
 
@@ -267,13 +267,13 @@ fn render_ppu(glyphs: &mut GlyphBrush<Resources, Factory>, ppu: &PPU, offset: [f
             "Status",
             vec!["V", "S", "O", "-", "-", "-", "-", "-"],
             vec![
-                (ppu.regs.status & (1 << 7)) > 0,
-                (ppu.regs.status & (1 << 6)) > 0,
-                (ppu.regs.status & (1 << 5)) > 0,
-                (ppu.regs.status & (1 << 4)) > 0,
-                (ppu.regs.status & (1 << 3)) > 0,
-                (ppu.regs.status & (1 << 2)) > 0,
-                (ppu.regs.status & (1 << 1)) > 0,
+                (ppu.regs.status.bits() & (1 << 7)) > 0,
+                (ppu.regs.status.bits() & (1 << 6)) > 0,
+                (ppu.regs.status.bits() & (1 << 5)) > 0,
+                (ppu.regs.status.bits() & (1 << 4)) > 0,
+                (ppu.regs.status.bits() & (1 << 3)) > 0,
+                (ppu.regs.status.bits() & (1 << 2)) > 0,
+                (ppu.regs.status.bits() & (1 << 1)) > 0,
             ],
             position);
 
