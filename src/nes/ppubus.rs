@@ -37,8 +37,13 @@ impl PPUMemory for PPUBus {
     fn readb_ppu(&self, addr: Addr) -> Byte {
         // Palette is never mapped to cartridge
         if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
-            let rel_addr = addr - 0x3F00;
-            return self.palette_memory[(rel_addr % 0x0020) as usize]
+            let mut rel_addr = addr - 0x3F00;
+            rel_addr = rel_addr % 0x0020;
+            if rel_addr == 0x0010 { rel_addr = 0x0000 }
+            if rel_addr == 0x0014 { rel_addr = 0x0004 }
+            if rel_addr == 0x0018 { rel_addr = 0x0008 }
+            if rel_addr == 0x001C { rel_addr = 0x000C }
+            return self.palette_memory[(rel_addr) as usize]
         }
 
         // give the cartridge a chance to handle the rest
@@ -71,7 +76,12 @@ impl PPUMemory for PPUBus {
     fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
         // Palette is never mapped to cartridge
         if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
-            let rel_addr = addr - 0x3F00;
+            let mut rel_addr = addr - 0x3F00;
+            rel_addr = rel_addr % 0x0020;
+            if rel_addr == 0x0010 { rel_addr = 0x0000 }
+            if rel_addr == 0x0014 { rel_addr = 0x0004 }
+            if rel_addr == 0x0018 { rel_addr = 0x0008 }
+            if rel_addr == 0x001C { rel_addr = 0x000C }
             self.palette_memory[(rel_addr % 0x0020) as usize] = data;
         }
 
@@ -246,14 +256,29 @@ mod tests {
 
         // read/write something to palette memory
         for (idx, addr) in (0x3F00 .. 0x3F1F + 1).enumerate() {
-            assert_eq!(0, mem.readb_ppu(addr));
             mem.writeb_ppu(addr, idx as Byte);
+            println!("Written {} to {:#08x}", idx, addr);
             assert_eq!(idx as Byte, mem.readb_ppu(addr));
         }
 
         // assert palette are initialized correctly
-        for (idx, addr) in (0x3F00 .. 0x3F1F + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+        // mirroring makes this look a bit strange, but this is the expected
+        // result for writing numbers to 0x3F00 to 0x3F1F
+        let expected = [
+            16,
+            1, 2, 3, 20, 
+            5, 6, 7, 24,
+            9, 10, 11, 28, 
+            13, 14, 15, 16,
+            17, 18, 19, 20,
+            21, 22, 23, 24,
+            25, 26, 27, 28,
+            29, 30, 31, 
+        ];
+
+        for (addr, expected) in (0x3F00 .. 0x3F1F + 1).zip(expected.iter()) {
+            assert_eq!(expected, &mem.readb_ppu(addr),
+                "{:#08x}", addr);
         }
     }
 
@@ -281,46 +306,82 @@ mod tests {
     }
 
     #[test]
+    fn test_ppu_memory_palette_internal_mirroring() {
+
+        let wired_mirrors = [
+            (0x3F10, 0x3F00),
+            (0x3F14, 0x3F04),
+            (0x3F18, 0x3F08),
+            (0x3F1C, 0x3F0C),
+        ];
+        for (idx, (addr, true_addr)) in wired_mirrors.iter().enumerate() {
+            let mut mem = PPUBus::new();
+            mem.writeb_ppu(*true_addr as Addr, idx as Byte);
+            assert_eq!(idx as Byte, mem.readb_ppu(*true_addr as Addr));
+            assert_eq!(idx as Byte, mem.readb_ppu(*addr as Addr));
+            mem.writeb_ppu(*true_addr as Addr, idx as Byte + 1);
+            assert_eq!(idx as Byte + 1, mem.readb_ppu(*true_addr as Addr));
+            assert_eq!(idx as Byte + 1, mem.readb_ppu(*addr as Addr));
+        }
+    }
+
+    #[test]
     fn test_ppu_memory_palette_mirroring() {
         let mut mem = PPUBus::new();
 
-        // read/write something to palette memory
+                // read/write something to palette memory
         for (idx, addr) in (0x3F00 .. 0x3F1F + 1).enumerate() {
             mem.writeb_ppu(addr, idx as Byte);
+            println!("Written {} to {:#08x}", idx, addr);
             assert_eq!(idx as Byte, mem.readb_ppu(addr));
         }
 
+        // assert palette are initialized correctly
+        // mirroring makes this look a bit strange, but this is the expected
+        // result for writing numbers to 0x3F00 to 0x3F1F
+        let expected = [
+            16,
+            1, 2, 3, 20, 
+            5, 6, 7, 24,
+            9, 10, 11, 28, 
+            13, 14, 15, 16,
+            17, 18, 19, 20,
+            21, 22, 23, 24,
+            25, 26, 27, 28,
+            29, 30, 31, 
+        ];
+
         // mirror memory should have the same data
         for (idx, addr) in (0x3F20 .. 0x3F3F + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+            assert_eq!(expected[idx], mem.readb_ppu(addr));
         }
         for (idx, addr) in (0x3F40 .. 0x3F5F + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+            assert_eq!(expected[idx], mem.readb_ppu(addr));
         }
         for (idx, addr) in (0x3F60 .. 0x3F7F + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+            assert_eq!(expected[idx], mem.readb_ppu(addr));
         }
         for (idx, addr) in (0x3F80 .. 0x3F9F + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+            assert_eq!(expected[idx], mem.readb_ppu(addr));
         }
         for (idx, addr) in (0x3FA0 .. 0x3FBF + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+            assert_eq!(expected[idx], mem.readb_ppu(addr));
         }
         for (idx, addr) in (0x3FC0 .. 0x3FDF + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+            assert_eq!(expected[idx], mem.readb_ppu(addr));
         }
         for (idx, addr) in (0x3FE0 .. 0x3FFF + 1).enumerate() {
-            assert_eq!(idx as Byte, mem.readb_ppu(addr));
+            assert_eq!(expected[idx], mem.readb_ppu(addr));
         }
 
         // write data to mirrored addr range
         for (idx, addr) in (0x3FC0 .. 0x3FDF + 1).enumerate() {
-            mem.writeb_ppu(addr, idx as Byte + 1);
+            mem.writeb_ppu(addr, expected[idx] + 2);
         }
 
         // start memory should have the same data
         for (idx, addr) in (0x3F00 .. 0x3F1F + 1).enumerate() {
-            assert_eq!(idx as Byte + 1, mem.readb_ppu(addr));
+            assert_eq!(expected[idx] + 2, mem.readb_ppu(addr));
         }
     }
 }

@@ -61,8 +61,8 @@ fn main() -> Result<(), Error> {
     // Prepare window and drawing resources
 
     // debugger + scaled nes resolution + border
-    let window_width = 300 + 256 * 2 + 5;
-    let window_height = 40 + 240*2 + 5;
+    let window_width = 300 + 256 * 3 + 5;
+    let window_height = 40 + 240 * 3 + 5;
     let mut window: PistonWindow = WindowSettings::new("xXx NESemu xXx", [window_width, window_height])
         .exit_on_esc(true).graphics_api(OpenGL::V3_2).build().unwrap();
     let mut event_settings = EventSettings::new();
@@ -78,33 +78,87 @@ fn main() -> Result<(), Error> {
     // fps counter
     let mut fps = FPSCounter::new();
 
-    // main screen texture
+    // screen textures
     let mut texture_ctx = TextureContext {
         factory: window.factory.clone(),
         encoder: window.factory.create_command_buffer().into(),
-    }; 
-    let mut texture: G2dTexture = Texture::from_image(
+    };
+
+    // main screen
+    let mut main_texture: G2dTexture = Texture::from_image(
         &mut texture_ctx,
         &nes.ppu.borrow().canvas_main,
         &TextureSettings::new()
     ).unwrap();
-    
+
+    // pattern table textures
+    let mut pattern_table_textures: Vec<G2dTexture> = (0..2).map({|i|
+        Texture::from_image(
+            &mut texture_ctx,
+            &nes.ppu.borrow().pattern_tables[i],
+            &TextureSettings::new()
+        ).unwrap()
+    }).collect();
+
+    // palette textures
+    let mut palette_textures: Vec<G2dTexture> = (0..8).map({|i|
+        Texture::from_image(
+            &mut texture_ctx,
+            &nes.ppu.borrow().palettes[i],
+            &TextureSettings::new()
+        ).unwrap()
+    }).collect();
     
     // Main loop
-    let mut run = false;
+    let mut run = true;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.render_args() {
             // Run enough clocks to render the next frame
             // if run { nes.clock_frame(); }
-            if run { nes.clock_scanline(); }
+            if run { nes.clock_frame(); }
 
-
-            texture.update(&mut texture_ctx, &nes.ppu.borrow().canvas_main).unwrap();
+            {
+                let mut ppu = nes.ppu.borrow_mut();
+                let ppu_bus = nes.ppu_bus.borrow();
+                // main_texture.update(&mut texture_ctx, &ppu.canvas_main).unwrap();
+                pattern_table_textures[0].update(&mut texture_ctx, &ppu.get_pattern_table(&*ppu_bus, 0, 1)).unwrap();
+                pattern_table_textures[1].update(&mut texture_ctx, &ppu.get_pattern_table(&*ppu_bus, 1, 1)).unwrap();
+                palette_textures[0].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 0)).unwrap();
+                palette_textures[1].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 1)).unwrap();
+                palette_textures[2].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 2)).unwrap();
+                palette_textures[3].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 3)).unwrap();
+                palette_textures[4].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 4)).unwrap();
+                palette_textures[5].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 5)).unwrap();
+                palette_textures[6].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 6)).unwrap();
+                palette_textures[7].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 7)).unwrap();
+            }
             window.draw_2d(&event, |c, g, d| {
                 clear(BG_COLOR, g);
                 texture_ctx.encoder.flush(d);
-                let transform = c.transform.trans(300.0, 40.0).scale(2.0, 2.0);
-                image(&texture, transform, g);
+                let transform = c.transform.trans(300.0, 40.0).scale(3.0, 3.0);
+                image(&main_texture, transform, g);
+
+                let mut transform = c.transform.trans(10.0, 480.0).scale(7.0, 7.0);
+                image(&palette_textures[0], transform, g);
+                transform = transform.trans(5.0, 0.0);
+                image(&palette_textures[1], transform, g);
+                transform = transform.trans(5.0, 0.0);
+                image(&palette_textures[2], transform, g);
+                transform = transform.trans(5.0, 0.0);
+                image(&palette_textures[3], transform, g);
+                transform = transform.trans(5.0, 0.0);
+                image(&palette_textures[4], transform, g);
+                transform = transform.trans(5.0, 0.0);
+                image(&palette_textures[5], transform, g);
+                transform = transform.trans(5.0, 0.0);
+                image(&palette_textures[6], transform, g);
+                transform = transform.trans(5.0, 0.0);
+                image(&palette_textures[7], transform, g);
+                
+                let mut transform = c.transform.trans(10.0, 490.0).scale(1.0, 1.0);
+                image(&pattern_table_textures[0], transform, g);
+                transform = transform.trans(148.0, 0.0).scale(1.0, 1.0);
+                image(&pattern_table_textures[1], transform, g);
 
                 // fps
                 let fps = fps.tick();

@@ -25,7 +25,7 @@ pub struct NES {
     pub cpu: CPU,
     pub bus: Bus,
     pub ppu: Rc<RefCell<PPU>>,
-    pub ppu_bus: PPUBus,
+    pub ppu_bus: Rc<RefCell<PPUBus>>,
     pub clock_count: u64,
 }
 
@@ -42,7 +42,7 @@ impl NES {
             cpu: CPU::new(),
             bus: Bus::new(ppu.clone(), ppu_bus.clone()),
             ppu: ppu.clone(),
-            ppu_bus: PPUBus::new(),
+            ppu_bus: ppu_bus.clone(),
             clock_count: 0,
         }
     }
@@ -53,7 +53,7 @@ impl NES {
         // both buses need to be connected to the cartridge
         let cart = Rc::new(RefCell::new(cartridge));
         self.bus.insert_cartridge(cart.clone());
-        self.ppu_bus.insert_cartridge(cart.clone())
+        self.ppu_bus.borrow_mut().insert_cartridge(cart.clone())
     }
 
     // Initializes the NES CPU programm pointer
@@ -74,7 +74,7 @@ impl NES {
         if self.clock_count % 3 == 0 {
             self.cpu.clock(&mut self.bus);
         }
-        self.ppu.borrow_mut().clock(&mut self.ppu_bus);
+        self.ppu.borrow_mut().clock(&mut *self.ppu_bus.borrow_mut());
         if self.clock_count % 100000 == 0 {
             info!("clock {}", self.clock_count);
         }

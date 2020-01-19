@@ -99,7 +99,8 @@ pub struct PPU {
     pub cycle: u16, 
     pub scanline: u16,
     pub canvas_main: Sprite,
-    pattern_table: [Sprite; 2],
+    pub pattern_tables: [Sprite; 2],
+    pub palettes: [Sprite; 8],
     pub frame_ready: bool,
     addr_latch_set: bool,
     data_buffer: Byte,
@@ -112,7 +113,20 @@ impl PPU {
             cycle: 0,
             scanline: 0,
             canvas_main: ImageBuffer::from_pixel(256, 240, PALETTE[&0x00]),
-            pattern_table: [ImageBuffer::new(128, 128), ImageBuffer::new(128, 128)],
+            pattern_tables: [
+                ImageBuffer::from_pixel(128, 128, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(128, 128, PALETTE[&0x00])
+                ],
+            palettes: [
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+                ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
+            ], 
             frame_ready: false,
             addr_latch_set: false,
             data_buffer: 0
@@ -207,7 +221,7 @@ impl PPU {
                 // palette memory
                 let data = self.data_buffer;
                 self.data_buffer = mem.readb_ppu(addr);
-
+                
                 if addr > 0x3F00 {  // everything above 0x3F00 is palette
                    self.data_buffer 
                 } else {
@@ -265,6 +279,30 @@ impl PPU {
         }
     }
 
+    // get a colored pixel using the NES color palette for given palette_id
+    // and pixel value
+    fn get_color_from_ram<T: PPUMemory>(&self, mem: &T, palette_id: u8, pixel: u8) -> Pixel {
+        // 0x3F00: Start of palette memory
+        // palette << 2: Palette size is 4
+        // pixel: pixel index is 0,1,2 or 3
+        // 0x3F (63): limits reading to PALETTE size
+        let palette_idx_addr = 0x3F00 + ((palette_id as Word) << 2) + pixel as Word;
+        // println!(palette_id_addr);
+        let palette_idx = mem.readb_ppu(palette_idx_addr) & 0x3F;
+        PALETTE[&palette_idx]
+    }
+
+    // updates the palette from VRAM and returns a sprite with the 4 colors
+    pub fn get_palette<T: PPUMemory>(&mut self, mem: &T, palette_id: u8) -> &Sprite {
+        for i in 0..4 {
+            self.palettes[palette_id as usize].put_pixel(
+                i, 0,
+                self.get_color_from_ram(mem, palette_id, i as u8)
+                );
+        }
+        &self.palettes[palette_id as usize]
+    }
+
     // Get the correct color for the pixel from the given palette
     fn get_color(&self, pixel: Byte, _palette: Byte) -> Pixel {
         // TODO: not implemented yet. returns some black and white color
@@ -278,7 +316,7 @@ impl PPU {
 
     // Get one of the two pattern tables of the PPU
     // This also initializes/updates the pattern table
-    fn get_pattern_table<T: PPUMemory>(&mut self, index: usize, _palette: Byte, mem: &T) -> &Sprite {
+    pub fn get_pattern_table<T: PPUMemory>(&mut self, mem: &T, index: usize, palette_id: Byte) -> &Sprite {
         // 16 x 16 tiles of 8x8px sprites per pattern table => 128x128px
         for x in 0..16 {  // tile row
             for y in 0..16 {  // tile column
@@ -298,10 +336,10 @@ impl PPU {
                     let mut tile_msb = mem.readb_ppu(tile_addr + 8);
                     for col in 0..8 {
                         let pixel = (tile_lsb & 0x01) + (tile_msb & 0x01);
-                        self.pattern_table[index].put_pixel(
+                        self.pattern_tables[index].put_pixel(
                             (x * 8 + (7-col)) as u32, // x starts on the right, sprit is from left
                             (y * 8 + row) as u32,
-                            self.get_color(123, pixel));
+                            self.get_color_from_ram(mem, palette_id, pixel));
                         tile_lsb >>= 1;
                         tile_msb >>= 1;
                     } 
@@ -309,14 +347,14 @@ impl PPU {
             }
         }
 
-        &self.pattern_table[index]
+        &self.pattern_tables[index]
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nes::memory::PPUBus;
+    use crate::nes::ppubus::PPUBus;
 
     #[test]
     fn test_set_flags() {
