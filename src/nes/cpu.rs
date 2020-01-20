@@ -123,6 +123,41 @@ impl CPU {
         self.curr_op = 0x00;
     }
 
+    fn interrupt<T: Memory>(&mut self, mem: &mut T, pc_addr: Addr) {
+        // push pc to stack
+        self.pushb_sp(mem, (self.regs.pc >> 8) as Byte);
+        self.pushb_sp(mem, self.regs.pc as Byte);
+
+        // push status reg with set interrupt flags to stack
+        self.set_flag(Flags::BREAK, false);
+        self.set_flag(Flags::UNUSED, true);
+        self.set_flag(Flags::IRQ, true);
+        self.pushb_sp(mem, self.regs.flags.bits());
+
+        // read new pc
+        let lo = mem.readb(pc_addr);
+        let hi = mem.readb(pc_addr + 1);
+        self.regs.pc = ((hi as Addr) << 8) | lo as Addr;
+    }
+
+    // Non maskable interrupt
+    pub fn nmi<T: Memory>(&mut self, mem: &mut T) {
+        let new_pc_addr = 0xFFFA;
+        self.interrupt(mem, new_pc_addr);
+        self.cycles_ahead = 8;
+    }
+
+    // Interrupt request: Same as nmi, but only takes place if interrupts are
+    // allowed
+    pub fn irq<T: Memory>(&mut self, mem: &mut T) {
+        if self.is_flag_set(Flags::IRQ) {
+            let new_pc_addr = 0xFFFE;
+            self.interrupt(mem, new_pc_addr);
+            self.cycles_ahead = 7;
+        }; 
+    }
+
+
     // True if the operation is not finished yet
     pub fn is_ahead(&self) -> bool {
         return self.cycles_ahead > 0;

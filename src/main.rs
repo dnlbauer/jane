@@ -110,7 +110,7 @@ fn main() -> Result<(), Error> {
     }).collect();
     
     // Main loop
-    let mut run = true;
+    let mut run = false;
     while let Some(event) = events.next(&mut window) {
         if let Some(_) = event.render_args() {
             // Run enough clocks to render the next frame
@@ -121,8 +121,8 @@ fn main() -> Result<(), Error> {
                 let mut ppu = nes.ppu.borrow_mut();
                 let ppu_bus = nes.ppu_bus.borrow();
                 // main_texture.update(&mut texture_ctx, &ppu.canvas_main).unwrap();
-                pattern_table_textures[0].update(&mut texture_ctx, &ppu.get_pattern_table(&*ppu_bus, 0, 1)).unwrap();
-                pattern_table_textures[1].update(&mut texture_ctx, &ppu.get_pattern_table(&*ppu_bus, 1, 1)).unwrap();
+                pattern_table_textures[0].update(&mut texture_ctx, &ppu.get_pattern_table(&*ppu_bus, 0, 0)).unwrap();
+                pattern_table_textures[1].update(&mut texture_ctx, &ppu.get_pattern_table(&*ppu_bus, 1, 0)).unwrap();
                 palette_textures[0].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 0)).unwrap();
                 palette_textures[1].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 1)).unwrap();
                 palette_textures[2].update(&mut texture_ctx, &ppu.get_palette(&*ppu_bus, 2)).unwrap();
@@ -249,6 +249,13 @@ fn render_cpu(glyphs: &mut GlyphBrush<Resources, Factory>, cpu: &CPU, offset: [f
                 cpu.is_flag_set(Flags::CARRY) 
             ],
             offset);
+        glyphs.queue(Section {
+            text: &format!("({:#04x})", cpu.regs.flags.bits()),
+            scale: *FT_SCALE,
+            screen_position: (offset[0]+200.0, offset[1]+FT_SIZE_PX) ,
+            color: FT_COLOR_WHITE,
+            ..Section::default()
+        });
 
         let cpu_register_texts = [
             &format!("A: {0:#x} ({0})", cpu.regs.a),

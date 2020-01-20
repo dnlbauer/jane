@@ -98,10 +98,11 @@ pub struct PPU {
     pub regs: Registers,
     pub cycle: u16, 
     pub scanline: u16,
+    pub frame_ready: bool,
+    pub nmi: bool,
     pub canvas_main: Sprite,
     pub pattern_tables: [Sprite; 2],
     pub palettes: [Sprite; 8],
-    pub frame_ready: bool,
     addr_latch_set: bool,
     data_buffer: Byte,
 }
@@ -112,6 +113,8 @@ impl PPU {
             regs: Registers::new(),
             cycle: 0,
             scanline: 0,
+            frame_ready: false,
+            nmi: false,
             canvas_main: ImageBuffer::from_pixel(256, 240, PALETTE[&0x00]),
             pattern_tables: [
                 ImageBuffer::from_pixel(128, 128, PALETTE[&0x00]),
@@ -127,7 +130,6 @@ impl PPU {
                 ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
                 ImageBuffer::from_pixel(4, 1, PALETTE[&0x00]),
             ], 
-            frame_ready: false,
             addr_latch_set: false,
             data_buffer: 0
         }
@@ -190,6 +192,9 @@ impl PPU {
         // set/clear vblank flag
         if self.scanline == 241 && self.cycle == 1 {
             self.set_status(Status::VERTICAL_BLANK, true);
+            if self.get_control(Control::ENABLE_NMI) {
+                self.nmi = true;
+            }
 
         } else if self.scanline == 261 && self.cycle == 1 {
             self.set_status(Status::VERTICAL_BLANK, false);
@@ -221,7 +226,7 @@ impl PPU {
                 // palette memory
                 let data = self.data_buffer;
                 self.data_buffer = mem.readb_ppu(addr);
-                
+
                 if addr > 0x3F00 {  // everything above 0x3F00 is palette
                    self.data_buffer 
                 } else {

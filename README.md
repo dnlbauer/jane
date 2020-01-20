@@ -11,7 +11,7 @@ Usage:
 ```
 Make sure to compile with `--release` for 60 fps.
 
-![Screenshot](https://i.imgur.com/1TMHZrs.png)
+![Screenshot](https://i.imgur.com/4s4cDWHl.png)
 
 ### what works
 * CPU

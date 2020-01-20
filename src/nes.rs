@@ -74,7 +74,13 @@ impl NES {
         if self.clock_count % 3 == 0 {
             self.cpu.clock(&mut self.bus);
         }
-        self.ppu.borrow_mut().clock(&mut *self.ppu_bus.borrow_mut());
+        let mut ppu = self.ppu.borrow_mut();
+        ppu.clock(&mut *self.ppu_bus.borrow_mut());
+        if ppu.nmi {
+            ppu.nmi = false;
+            self.cpu.nmi(&mut self.bus);
+            debug!("NMI triggered by PPU.")
+        }
         if self.clock_count % 100000 == 0 {
             info!("clock {}", self.clock_count);
         }
