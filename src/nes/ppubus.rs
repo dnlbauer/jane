@@ -31,19 +31,49 @@ impl PPUBus {
     pub fn insert_cartridge(&mut self, c: Rc<RefCell<Cartridge>>) {
         self.cartridge = Some(c);
     }
+
+    // map palette addr to internal memory array index
+    fn map_palette_addr(&self, addr: Addr) -> usize {
+        let mut rel_addr = addr - 0x3F00;
+        rel_addr = rel_addr % 0x0020;
+        if rel_addr == 0x0010 { rel_addr = 0x0000 }
+        if rel_addr == 0x0014 { rel_addr = 0x0004 }
+        if rel_addr == 0x0018 { rel_addr = 0x0008 }
+        if rel_addr == 0x001C { rel_addr = 0x000C }
+        rel_addr as usize
+    }
+
+    // maps a pattern table address to the index of the internal array
+    fn map_pattern_table_addr(&self, addr: Addr) -> (usize, usize) {
+        let table = if addr < 0x1000 { 0 } else { 1 };
+        let rel_addr = addr % 0x1000;
+        (table as usize, rel_addr as usize)
+    }
+
+    // maps a nametable address to the corresponding index in the memory
+    // array
+    fn map_nametable_addr(&self, addr: Addr) -> (usize, usize) {
+        let table = if addr < 0x2400 {
+            0
+        } else if addr < 0x2800 {
+            1
+        } else if addr < 0x2C00 {
+            2
+        } else {
+            3
+        };
+        let rel_addr = (addr - 0x2000) % 0x400;
+        
+        (table as usize, rel_addr as usize)
+    }
 }
 
 impl PPUMemory for PPUBus {
     fn readb_ppu(&self, addr: Addr) -> Byte {
         // Palette is never mapped to cartridge
         if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
-            let mut rel_addr = addr - 0x3F00;
-            rel_addr = rel_addr % 0x0020;
-            if rel_addr == 0x0010 { rel_addr = 0x0000 }
-            if rel_addr == 0x0014 { rel_addr = 0x0004 }
-            if rel_addr == 0x0018 { rel_addr = 0x0008 }
-            if rel_addr == 0x001C { rel_addr = 0x000C }
-            return self.palette_memory[(rel_addr) as usize]
+            let idx = self.map_palette_addr(addr);
+            return self.palette_memory[idx]
         }
 
         // give the cartridge a chance to handle the rest
@@ -54,35 +84,22 @@ impl PPUMemory for PPUBus {
         }
 
         if PATTERN_ADDR_RANGE[0] <= addr && addr <= PATTERN_ADDR_RANGE[1] {
-            let table = if addr < 0x1000 { 0 } else { 1 };
-            return self.pattern_memory[table as usize][(addr % 0x1000) as usize]
+            let idx = self.map_pattern_table_addr(addr);
+            return self.pattern_memory[idx.0][idx.1]
         }
         if NAMETABLE_ADDR_RANGE[0] <= addr && addr <= NAMETABLE_ADDR_RANGE[1] {
-            let table = if addr < 0x2400 {
-                0
-            } else if addr < 0x2800 {
-                1
-            } else if addr < 0x2C00 {
-                2
-            } else {
-                3
-            };
-            let rel_addr = addr - 0x2000;
-            return self.nametable_memory[table][(rel_addr % 0x400) as usize]
+            let idx = &self.map_nametable_addr(addr);
+            return self.nametable_memory[idx.0][idx.1]
         }
         
         0x00
     }
+
     fn writeb_ppu(&mut self, addr: Addr, data: Byte) {
         // Palette is never mapped to cartridge
         if PALETTE_ADDR_RANGE[0] <= addr && addr <= PALETTE_ADDR_RANGE[1] {
-            let mut rel_addr = addr - 0x3F00;
-            rel_addr = rel_addr % 0x0020;
-            if rel_addr == 0x0010 { rel_addr = 0x0000 }
-            if rel_addr == 0x0014 { rel_addr = 0x0004 }
-            if rel_addr == 0x0018 { rel_addr = 0x0008 }
-            if rel_addr == 0x001C { rel_addr = 0x000C }
-            self.palette_memory[(rel_addr % 0x0020) as usize] = data;
+            let idx = self.map_palette_addr(addr);
+            self.palette_memory[idx] = data;
         }
 
         // give the cartridge a chance to handle the rest
@@ -93,21 +110,12 @@ impl PPUMemory for PPUBus {
         }
 
         if PATTERN_ADDR_RANGE[0] <= addr && addr <= PATTERN_ADDR_RANGE[1] {
-            let table = if addr < 0x1000 { 0 } else { 1 };
-            self.pattern_memory[table as usize][(addr % 0x1000) as usize] = data;
+            let idx = self.map_pattern_table_addr(addr);
+            self.pattern_memory[idx.0][idx.1] = data;
         }
         if NAMETABLE_ADDR_RANGE[0] <= addr && addr <= NAMETABLE_ADDR_RANGE[1] {
-            let table = if addr < 0x2400 {
-                0
-            } else if addr < 0x2800 {
-                1
-            } else if addr < 0x2C00 {
-                2
-            } else {
-                3
-            };
-            let rel_addr = addr - 0x2000;
-            self.nametable_memory[table][(rel_addr % 0x400) as usize] = data;
+            let idx = &self.map_nametable_addr(addr);
+            self.nametable_memory[idx.0][idx.1] = data;
         }
     }
 }
