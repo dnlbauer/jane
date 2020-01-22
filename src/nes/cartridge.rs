@@ -18,19 +18,22 @@ struct Header {
 }
 
 impl Header {
+    // parse the 16 Byte header of the file
     fn new(f: &mut File) -> Result<Self, Error> {
         f.seek(SeekFrom::Start(0))?;
 
-        // assert NES "NES"
+        // Byte 0-3 are the "NES" format header and just say NES
         f.seek(SeekFrom::Start(4))?;
 
+        // Byte 4 and 5 are prg and chr rom sizes
         let mut rom_sizes = [0; 2];  // prg size in 16K and chr size in 8K
         f.read_exact(&mut rom_sizes)?;
 
+        // Byte 6-10 are various flags
         let mut flags = [0; 5];
         f.read_exact(&mut flags)?;
 
-        // Unused
+        // Byte 11-15 are unused
         f.seek(SeekFrom::Current(5))?;
 
         Ok(Header {
@@ -54,12 +57,28 @@ impl Header {
         hi | lo
     }
 
+    pub fn get_mirror_mode(&self) -> MirrorMode {
+        if (self.mapper1 & 0x01) == 0 {
+            MirrorMode::HORIZONTAL
+        } else {
+            MirrorMode::VERTICAL
+        }
+    }
+
 }
+
+// Nametable mirroring mode
+#[derive(PartialEq,Debug,Copy,Clone)]
+pub enum MirrorMode {
+    HORIZONTAL,
+    VERTICAL,
+} 
 
 pub struct Cartridge {
     prg_rom: Vec<Byte>,
     chr_rom: Vec<Byte>,
     mapper: Box<dyn Mapper>,
+    mirror: MirrorMode,
 }
 
 impl Cartridge {
@@ -78,27 +97,29 @@ impl Cartridge {
         f.read_exact(&mut prg_rom)?;
         let mut chr_rom = vec!(0; header.chr_rom_chunks as usize * 8192);
         f.read_exact(&mut chr_rom)?;
-        
 
         let mapper = match header.get_mapper_id() {
             0 => { Mapper0::new(header.prg_rom_chunks, header.chr_rom_chunks) }
             id => bail!("Mapper {:04} not supported", id)
         };
 
+        let mirror = header.get_mirror_mode();
 
         debug!("Cartrige loaded. mapper: {:?}", &mapper);
         Ok(Cartridge {
             prg_rom: prg_rom,
             chr_rom: chr_rom,
-            mapper: Box::new(mapper)
+            mapper: Box::new(mapper),
+            mirror: mirror,
         })
     }
 
-    pub fn dummy() -> Self {
+    pub fn dummy(mirror: MirrorMode) -> Self {
         Cartridge {
             prg_rom: vec![0; 16384],
             chr_rom: vec![0; 8192],
-            mapper: Box::new(Mapper0::new(1, 1))
+            mapper: Box::new(Mapper0::new(1, 1)),
+            mirror: mirror,
         }
     }
 
@@ -133,6 +154,12 @@ impl Cartridge {
             return true;
         }
         false
+    }
+
+    // get cartrige mirror mode
+    // TODO can be changed by mapper
+    pub fn get_mirror_mode(&self) -> MirrorMode {
+        self.mirror
     }
 }
 
@@ -177,6 +204,31 @@ mod tests {
                 tv2: 0x00
         };
         assert_eq!(255, header.get_mapper_id());
+    }
+
+    #[test]
+    fn test_header_get_mirror_mode() {
+        let header = Header {
+                prg_rom_chunks: 1,
+                chr_rom_chunks: 1,
+                mapper1: 0x00,
+                mapper2: 0x00,
+                prg_ram_size: 0x00,
+                tv1: 0x00,
+                tv2: 0x00
+        };
+        assert_eq!(header.get_mirror_mode(), MirrorMode::HORIZONTAL);
+        let header = Header {
+                prg_rom_chunks: 1,
+                chr_rom_chunks: 1,
+                mapper1: 0x01,
+                mapper2: 0x00,
+                prg_ram_size: 0x00,
+                tv1: 0x00,
+                tv2: 0x00
+        };
+        assert_eq!(header.get_mirror_mode(), MirrorMode::VERTICAL);
+
     }
 
     #[test]
